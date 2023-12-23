@@ -21,25 +21,26 @@ const { wss } = setupApp();
 // }
 
 export const setupEventListeners = (ws: WebSocket) => {
-  ws.on(COIN_QUOTE_REQUEST, async function (payload: string) {
-    const { inputMint, outputMint, amount } = JSON.parse(payload);
+  ws.on("message", async function (message: string) {
+    const { type, payload } = JSON.parse(message);
 
-    const quote = await getQuoteFromJupiter({
-      inputMint,
-      outputMint,
-      amount,
-    });
+    switch (type) {
+      case COIN_QUOTE_REQUEST: {
+        const { inputMint, outputMint, amount } = payload;
 
-    ws.send(JSON.stringify(quote));
-  });
+        const quote = await getQuoteFromJupiter({
+          inputMint,
+          outputMint,
+          amount,
+        });
 
-  ws.on(GENERIC_MESSAGE, function (payload: string) {
-    console.log("received: %s", payload);
-  });
-
-  // on anything else, just log it
-  ws.on("message", function (payload: string) {
-    console.log("received: %s", payload);
+        ws.send(JSON.stringify(quote));
+        break;
+      }
+      default: {
+        console.log("No handler for this type of message");
+      }
+    }
   });
 };
 

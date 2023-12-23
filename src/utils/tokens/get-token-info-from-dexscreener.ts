@@ -1,7 +1,7 @@
 import {
   DexscreenerCoinInfoResponse,
   GetTokenInfoFromDexscreenerResponse,
-} from "@/types";
+} from "../../types";
 
 export const getTokenInfoFromDexscreener = async ({
   address,

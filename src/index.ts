@@ -36,6 +36,11 @@ export const setupEventListeners = (ws: WebSocket) => {
   ws.on(GENERIC_MESSAGE, function (payload: string) {
     console.log("received: %s", payload);
   });
+
+  // on anything else, just log it
+  ws.on("message", function (payload: string) {
+    console.log("received: %s", payload);
+  });
 };
 
 wss.on("connection", function (ws: WebSocket) {

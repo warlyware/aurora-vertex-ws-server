@@ -28,13 +28,17 @@ export const setupEventListeners = (ws: WebSocket) => {
       case COIN_QUOTE_REQUEST: {
         const { inputMint, outputMint, amount } = payload;
 
-        const quote = await getQuoteFromJupiter({
-          inputMint,
-          outputMint,
-          amount,
-        });
+        try {
+          const quote = await getQuoteFromJupiter({
+            inputMint,
+            outputMint,
+            amount,
+          });
 
-        ws.send(JSON.stringify(quote));
+          ws.send(JSON.stringify(quote));
+        } catch (error) {
+          console.error({ error });
+        }
         break;
       }
       default: {

@@ -13,7 +13,7 @@ export const getQuoteFromJupiter = async ({
     throw new Error("Missing inputMint, outputMint, or amount");
   }
 
-  const jupiterQuoteApi = createJupiterApiClient({});
+  const jupiterQuoteApi = createJupiterApiClient();
   const quote = await jupiterQuoteApi.quoteGet({
     inputMint,
     outputMint,

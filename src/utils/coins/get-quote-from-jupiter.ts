@@ -13,12 +13,22 @@ export const getQuoteFromJupiter = async ({
     throw new Error("Missing inputMint, outputMint, or amount");
   }
 
-  const jupiterQuoteApi = createJupiterApiClient();
-  const quote = await jupiterQuoteApi.quoteGet({
-    inputMint,
-    outputMint,
-    amount,
-  });
+  //quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1000000&slippageBps=1
 
-  return quote;
+  const quote = await fetch(
+    `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=1`
+  );
+
+  const quoteJson = await quote.json();
+
+  console.log({ quoteJson });
+
+  // const jupiterQuoteApi = createJupiterApiClient();
+  // const quote = await jupiterQuoteApi.quoteGet({
+  //   inputMint,
+  //   outputMint,
+  //   amount,
+  // });
+
+  return quoteJson;
 };

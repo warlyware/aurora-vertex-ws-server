@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "tsc && node dist/index.js",
+    "start": "tsc && node -r tsconfig-paths/register dist/index.js",
     "dev": "pnpm start"
   },
   "keywords": [],
@@ -13,7 +13,8 @@
   "license": "ISC",
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/ws": "^8.5.10"
+    "@types/ws": "^8.5.10",
+    "tsconfig-paths": "^4.2.0"
   },
   "dependencies": {
     "@jup-ag/api": "^6.0.9",

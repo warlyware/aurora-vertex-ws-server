@@ -1,10 +1,10 @@
 "use strict";
 import WebSocket from "ws";
-import { setupApp } from "@/setup";
-import { setupFolderWatchers } from "@/watchers/folders";
-import { setupMemoryWatcher } from "@/watchers/memory";
-import { getQuoteFromJupiter } from "@/utils/coins/get-quote-from-jupiter";
-import { messageTypes } from "@/types/messages";
+import { messageTypes } from "./types/messages";
+import { setupApp } from "./setup";
+import { getQuoteFromJupiter } from "./utils/coins/get-quote-from-jupiter";
+import { setupMemoryWatcher } from "./watchers/memory";
+import { setupFolderWatchers } from "./watchers/folders";
 
 const { GENERIC_MESSAGE, COIN_QUOTE_REQUEST } = messageTypes;
 

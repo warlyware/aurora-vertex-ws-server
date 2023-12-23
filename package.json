@@ -1,0 +1,20 @@
+{
+  "name": "aurora-vertex-ws-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node dist/index.js",
+    "dev": "pnpm start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/express": "^4.17.21"
+  },
+  "dependencies": {
+    "@types/ws": "^8.5.10"
+  }
+}

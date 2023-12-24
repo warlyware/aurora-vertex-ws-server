@@ -12,12 +12,16 @@ export const getLiquidityPoolsFromRaydium = async ({
 }) => {
   const url = getLiquidityPoolsFromRaydiumUrl({ year, month, day });
 
+  console.log({ url });
+
   try {
-    const poolsRes = await fetch(url, {
+    const pools = await fetch(url, {
       method: "GET",
     });
 
-    const pools = await poolsRes.json();
+    console.log({ pools });
+
+    return pools;
   } catch (error) {
     console.error({ error });
   }

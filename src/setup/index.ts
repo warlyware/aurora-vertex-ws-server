@@ -13,6 +13,7 @@ const {
   GET_LIQUIDITY_POOLS_FROM_RAYDIUM,
   PING,
   PONG,
+  GET_LIQUIDITY_POOLS_FROM_RAYDIUM_RESPONSE,
 } = messageTypes;
 
 export const setupApp = () => {
@@ -58,7 +59,12 @@ export const setupEventListeners = (ws: WebSocket) => {
             day,
           });
 
-          ws.send(JSON.stringify(pools));
+          ws.send(
+            JSON.stringify({
+              type: GET_LIQUIDITY_POOLS_FROM_RAYDIUM_RESPONSE,
+              payload: pools,
+            })
+          );
         } catch (error) {
           console.error({ error });
         }

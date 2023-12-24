@@ -1,3 +1,4 @@
+import { SOL_TOKEN_ADDRESS } from "../../constants";
 import { Day, Month, Year } from "../../constants/datetime";
 
 export const getBrowserLikeHeaders = () => {
@@ -47,7 +48,7 @@ export const getTokenRatingFromDexScreenerUrl = (address: string) => {
 };
 
 export const getQuoteFromJupiterUrl = ({
-  inputMint = "So11111111111111111111111111111111111111112",
+  inputMint = SOL_TOKEN_ADDRESS,
   outputMint,
   amount,
 }: {
@@ -73,4 +74,8 @@ export const getJupiterPriceUrl = ({
 }) => {
   const addressesString = addresses.join(",");
   return `https://price.jup.ag/v4/price?ids=${addressesString}&vsToken=${vsTokenAddress}`;
+};
+
+export const getPriceInfoFromDexscreenerUrl = (address: string) => {
+  return `https://api.dexscreener.com/latest/dex/tokens/${address}`;
 };

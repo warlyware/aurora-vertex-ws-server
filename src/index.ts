@@ -1,4 +1,6 @@
 "use strict";
+
+import "dotenv/config";
 import WebSocket from "ws";
 import { setupApp, setupEventListeners, setupKeepAlive } from "./setup";
 import { setupMemoryWatcher } from "./watchers/memory";

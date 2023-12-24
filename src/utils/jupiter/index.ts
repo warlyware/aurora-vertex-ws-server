@@ -1,10 +1,11 @@
 import axios from "axios";
-import { getJupiterPriceUrl } from "../urls";
+import { getJupiterPriceUrl, getQuoteFromJupiterUrl } from "../urls";
 
 export const getPriceFromJupiter = async ({ address }: { address: string }) => {
-  const url = getJupiterPriceUrl({
-    addresses: [address],
-    vsTokenAddress: "USDC",
+  const url = getQuoteFromJupiterUrl({
+    inputMint: "USDC",
+    outputMint: address,
+    amount: 1,
   });
 
   console.log({ url });

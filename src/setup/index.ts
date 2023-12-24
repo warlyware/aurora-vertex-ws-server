@@ -7,6 +7,7 @@ import { messageTypes } from "../types/messages";
 import { getQuoteFromJupiter } from "../utils/coins/get-quote-from-jupiter";
 import { getLiquidityPoolsFromRaydium } from "../utils/raydium/get-liquidity-pools-from-raydium";
 import { scrapeRugCheck } from "../utils/rug-check";
+import { getPriceFromJupiter } from "../utils/jupiter";
 
 const {
   COIN_QUOTE_REQUEST,
@@ -15,6 +16,7 @@ const {
   PONG,
   GET_LIQUIDITY_POOLS_FROM_RAYDIUM_RESPONSE,
   GET_RUG_CHECK_INFO,
+  GET_PRICE_FROM_JUPITER,
 } = messageTypes;
 
 export const setupApp = () => {
@@ -73,6 +75,16 @@ export const setupEventListeners = (ws: WebSocket) => {
               payload: pools,
             })
           );
+        } catch (error) {
+          console.error({ error });
+        }
+        break;
+      }
+      case GET_PRICE_FROM_JUPITER: {
+        try {
+          const price = await getPriceFromJupiter(payload);
+
+          ws.send(JSON.stringify(price));
         } catch (error) {
           console.error({ error });
         }

@@ -15,13 +15,14 @@ export const getLiquidityPoolsFromRaydium = async ({
   console.log({ url });
 
   try {
-    const poolsRes = await fetch(url, {
+    const response = await fetch(url, {
       method: "GET",
     });
 
-    // const pools = await poolsRes.json();
-
-    const pools = await poolsRes.body;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const pools = await response?.json();
 
     console.log({ pools });
 

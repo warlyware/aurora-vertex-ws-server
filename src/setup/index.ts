@@ -41,6 +41,7 @@ export const setupEventListeners = (ws: WebSocket) => {
 
     switch (type) {
       case PING: {
+        console.log("Received PING");
         ws.send(
           JSON.stringify({
             type: PONG,

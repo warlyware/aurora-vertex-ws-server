@@ -25,11 +25,22 @@ export const getRugCheckInfoUrl = (address: string) => {
   return `https://rugcheck.xyz/tokens/${address}`;
 };
 
-export const getPriceUrl = ({ addresses }: { addresses: string[] }) => {
+export const getGeckoPriceUrl = ({ addresses }: { addresses: string[] }) => {
   const addressesString = addresses.join(",");
   return `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${addressesString}&vs_currencies=usd`;
 };
 
 export const getTokenRatingFromDexScreenerUrl = (address: string) => {
   return `https://cfw.dexscreener.com/sc/dex:solana:${address}`;
+};
+
+export const getJupiterPriceUrl = ({
+  addresses,
+  vsTokenAddress,
+}: {
+  addresses: string[];
+  vsTokenAddress: string;
+}) => {
+  const addressesString = addresses.join(",");
+  return `https://price.jup.ag/v4/price?ids=${addressesString}&vsToken=${vsTokenAddress}`;
 };

@@ -38,36 +38,7 @@ export const handleSwap = async ({
 
   console.log(2);
 
-  // Retrieve the `indexed-route-map`
-  const indexedRouteMap = await (
-    await fetch("https://quote-api.jup.ag/v6/indexed-route-map")
-  ).json();
-
-  console.log(2.2);
-  console.log(2.3);
-  const getMint = (index: any) => indexedRouteMap["mintKeys"][index];
-  console.log(2.4);
-  const getIndex = (mint: string) => indexedRouteMap["mintKeys"].indexOf(mint);
-
   console.log(3);
-
-  // Generate the route map by replacing indexes with mint addresses
-  var generatedRouteMap: GeneratedRouteMap = {};
-  Object.keys(indexedRouteMap["indexedRouteMap"]).forEach((key, index) => {
-    generatedRouteMap[getMint(key)] = indexedRouteMap["indexedRouteMap"][
-      key
-    ].map((index: any) => getMint(index));
-  });
-
-  console.log(4);
-
-  // List all possible input tokens by mint address
-  const allInputMints = Object.keys(generatedRouteMap);
-
-  // List all possition output tokens that can be swapped from the mint address for SOL.
-  // SOL -> X
-  const swappableOutputForSOL = generatedRouteMap[SOL_TOKEN_ADDRESS];
-  // console.log({ allInputMints, swappableOutputForSOL })
 
   console.log(5);
 
@@ -76,6 +47,7 @@ export const handleSwap = async ({
       `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${slippageBps}`
     )
   ).json();
+
   console.log({ quoteResponse });
 
   // get serialized transactions for the swap

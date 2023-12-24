@@ -18,8 +18,12 @@ export const scrapeRugCheck = async ({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
+  const url = getRugCheckInfoUrl(address);
+
+  console.log({ url });
+
   const page = await browser.newPage();
-  await page.goto(getRugCheckInfoUrl(address), {
+  await page.goto(url, {
     waitUntil: "networkidle0",
   });
 

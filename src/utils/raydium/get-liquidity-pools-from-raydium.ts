@@ -36,7 +36,10 @@ export const getLiquidityPoolsFromRaydium = async ({
 
     console.log({ pools });
 
-    return pools;
+    return {
+      pools: [...pools?.official, ...pools?.unOfficial],
+      count: pools?.official?.length + pools?.unOfficial?.length,
+    };
   } catch (error) {
     console.error({ error });
   }

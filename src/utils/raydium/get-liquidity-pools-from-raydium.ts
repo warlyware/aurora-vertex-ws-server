@@ -1,3 +1,4 @@
+import axios from "axios";
 import { Day, Month, Year } from "../../constants/datetime";
 import { getLiquidityPoolsFromRaydiumUrl } from "../urls";
 
@@ -15,14 +16,13 @@ export const getLiquidityPoolsFromRaydium = async ({
   console.log({ url });
 
   try {
-    const response = await fetch(url, {
+    const { data: pools, status } = await axios.get(url, {
       method: "GET",
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!pools || status !== 200) {
+      throw new Error(`HTTP error! status: ${status}`);
     }
-    const pools = await response?.json();
 
     console.log({ pools });
 

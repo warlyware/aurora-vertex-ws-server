@@ -39,7 +39,7 @@ export const handleSwap = async ({
   console.log(2);
 
   // Retrieve the `indexed-route-map`
-  const indexedRouteMapResponse = await await fetch(
+  const indexedRouteMapResponse = await fetch(
     "https://quote-api.jup.ag/v6/indexed-route-map"
   );
   console.log(2.2);

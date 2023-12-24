@@ -32,12 +32,6 @@ export const setupApp = () => {
   return { app, wss, server };
 };
 
-export const setupKeepAlive = (ws: WebSocket) => {
-  ws.on(PING, function () {
-    ws.send(JSON.stringify({ type: PONG }));
-  });
-};
-
 export const setupEventListeners = (ws: WebSocket) => {
   ws.on("message", async function (message: string) {
     const { type, payload } = JSON.parse(message);

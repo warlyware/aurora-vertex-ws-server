@@ -2,7 +2,7 @@
 
 import "dotenv/config";
 import WebSocket from "ws";
-import { setupApp, setupEventListeners, setupKeepAlive } from "./setup";
+import { setupApp, setupEventListeners } from "./setup";
 import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 
@@ -14,7 +14,6 @@ wss.on("connection", function (ws: WebSocket) {
   const id = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
   setupEventListeners(ws);
-  setupKeepAlive(ws);
 
   ws.on("close", function () {
     console.log("stopping client interval");

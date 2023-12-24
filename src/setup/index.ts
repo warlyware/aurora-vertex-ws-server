@@ -40,6 +40,17 @@ export const setupEventListeners = (ws: WebSocket) => {
     const { type, payload } = JSON.parse(message);
 
     switch (type) {
+      case PING: {
+        ws.send(
+          JSON.stringify({
+            type: PONG,
+            payload: {
+              timestamp: Date.now(),
+            },
+          })
+        );
+        break;
+      }
       case COIN_QUOTE_REQUEST: {
         try {
           const quote = await getQuoteFromJupiter(payload);
@@ -52,12 +63,7 @@ export const setupEventListeners = (ws: WebSocket) => {
       }
       case GET_LIQUIDITY_POOLS_FROM_RAYDIUM: {
         try {
-          const { year, month, day } = payload;
-          const pools = await getLiquidityPoolsFromRaydium({
-            year,
-            month,
-            day,
-          });
+          const pools = await getLiquidityPoolsFromRaydium(payload);
 
           ws.send(
             JSON.stringify({

@@ -11,6 +11,8 @@ const {
   GENERIC_MESSAGE,
   COIN_QUOTE_REQUEST,
   GET_LIQUIDITY_POOLS_FROM_RAYDIUM,
+  PING,
+  PONG,
 } = messageTypes;
 
 export const setupApp = () => {
@@ -24,6 +26,12 @@ export const setupApp = () => {
   });
 
   return { app, wss, server };
+};
+
+export const setupKeepAlive = (ws: WebSocket) => {
+  ws.on(PING, function () {
+    ws.send(JSON.stringify({ type: PONG }));
+  });
 };
 
 export const setupEventListeners = (ws: WebSocket) => {

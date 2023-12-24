@@ -26,6 +26,8 @@ export const handleSwap = async ({
     throw new Error("Missing required parameters");
   }
 
+  console.log(1);
+
   const connection = new Connection(RPC_ENDPOINT, "confirmed");
 
   const wallet = new Wallet(
@@ -33,6 +35,8 @@ export const handleSwap = async ({
       bs58.decode(process.env.AURORA_VERTEX_PRIVATE_KEY || "")
     )
   );
+
+  console.log(2);
 
   // Retrieve the `indexed-route-map`
   const indexedRouteMapResponse = await await fetch(
@@ -42,6 +46,8 @@ export const handleSwap = async ({
   const getMint = (index: any) => indexedRouteMap["mintKeys"][index];
   const getIndex = (mint: string) => indexedRouteMap["mintKeys"].indexOf(mint);
 
+  console.log(3);
+
   // Generate the route map by replacing indexes with mint addresses
   var generatedRouteMap: GeneratedRouteMap = {};
   Object.keys(indexedRouteMap["indexedRouteMap"]).forEach((key, index) => {
@@ -50,6 +56,8 @@ export const handleSwap = async ({
     ].map((index: any) => getMint(index));
   });
 
+  console.log(4);
+
   // List all possible input tokens by mint address
   const allInputMints = Object.keys(generatedRouteMap);
 
@@ -57,6 +65,8 @@ export const handleSwap = async ({
   // SOL -> X
   const swappableOutputForSOL = generatedRouteMap[SOL_TOKEN_ADDRESS];
   // console.log({ allInputMints, swappableOutputForSOL })
+
+  console.log(5);
 
   const quoteResponse = await (
     await fetch(
@@ -101,4 +111,6 @@ export const handleSwap = async ({
   });
   await connection.confirmTransaction(txid);
   console.log(`https://solscan.io/tx/${txid}`);
+
+  return { txid };
 };

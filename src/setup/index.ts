@@ -42,6 +42,11 @@ export const setupEventListeners = (ws: WebSocket) => {
   ws.on("message", async function (message: string) {
     const { type, payload } = JSON.parse(message);
 
+    console.log({
+      type,
+      payload,
+    });
+
     switch (type) {
       case PING: {
         console.log("Received PING");
@@ -82,9 +87,11 @@ export const setupEventListeners = (ws: WebSocket) => {
       }
       case SWAP_TOKENS: {
         try {
-          const quote = await handleSwap(payload);
+          const swap = await handleSwap(payload);
 
-          ws.send(JSON.stringify(quote));
+          console.log({ swap });
+
+          ws.send(JSON.stringify(swap));
         } catch (error) {
           console.error({ error });
         }

@@ -7,6 +7,8 @@ export const getPriceFromJupiter = async ({ address }: { address: string }) => {
     vsTokenAddress: "USDC",
   });
 
+  console.log({ url });
+
   const { data } = await axios.get(url);
 
   console.log({ data });

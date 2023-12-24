@@ -1,4 +1,4 @@
-export type RadiumLiquidityPool = {
+export type RaydiumLiquidityPool = {
   id: string;
   baseMint: string;
   quoteMint: string;
@@ -27,8 +27,8 @@ export type RadiumLiquidityPool = {
   lookupTableAccount: string;
 };
 
-export type RadiumLiquidityPoolInfoList = {
+export type RaydiumLiquidityPoolInfoList = {
   name: string;
-  official: RadiumLiquidityPool[];
-  unOfficial: RadiumLiquidityPool[];
+  official: RaydiumLiquidityPool[];
+  unOfficial: RaydiumLiquidityPool[];
 };

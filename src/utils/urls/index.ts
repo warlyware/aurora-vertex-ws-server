@@ -20,3 +20,16 @@ export const getLiquidityPoolsFromRaydiumUrl = ({
 }) => {
   return `https://api.raydium.io/v2/sdk/liquidity/date/${year}-${month}-${day}`;
 };
+
+export const getRugCheckInfoUrl = (address: string) => {
+  return `https://rugcheck.xyz/tokens/${address}`;
+};
+
+export const getPriceUrl = ({ addresses }: { addresses: string[] }) => {
+  const addressesString = addresses.join(",");
+  return `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${addressesString}&vs_currencies=usd`;
+};
+
+export const getTokenRatingFromDexScreenerUrl = (address: string) => {
+  return `https://cfw.dexscreener.com/sc/dex:solana:${address}`;
+};

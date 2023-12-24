@@ -4,7 +4,7 @@ import {
   getBrowserLikeHeaders,
   getLiquidityPoolsFromRaydiumUrl,
 } from "../urls";
-import { RadiumLiquidityPoolInfoList } from "../../types/raydium";
+import { RaydiumLiquidityPoolInfoList } from "../../types/raydium";
 
 export const getLiquidityPoolsFromRaydium = async ({
   year = new Date().getFullYear().toString() as Year,
@@ -24,7 +24,7 @@ export const getLiquidityPoolsFromRaydium = async ({
       data: pools,
       status,
     }: {
-      data: RadiumLiquidityPoolInfoList;
+      data: RaydiumLiquidityPoolInfoList;
       status: number;
     } = await axios.get(url, {
       headers: getBrowserLikeHeaders(),

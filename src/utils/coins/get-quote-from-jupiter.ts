@@ -1,4 +1,3 @@
-import { createJupiterApiClient } from "@jup-ag/api";
 import { getBrowserLikeHeaders } from "../urls";
 
 export const getQuoteFromJupiter = async ({

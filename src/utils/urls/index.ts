@@ -21,17 +21,47 @@ export const getLiquidityPoolsFromRaydiumUrl = ({
   return `https://api.raydium.io/v2/sdk/liquidity/date/${year}-${month}-${day}`;
 };
 
+export const getPricesFromRaydiumUrl = ({}) => {
+  return `https://api.raydium.io/v2/main/price`;
+};
+
+export const getAmmPoolsFromRaydiumUrl = ({}) => {
+  return `https://api.raydium.io/v2/ammV3/ammPools`;
+};
+
 export const getRugCheckInfoUrl = (address: string) => {
   return `https://rugcheck.xyz/tokens/${address}`;
 };
 
-export const getGeckoPriceUrl = ({ addresses }: { addresses: string[] }) => {
-  const addressesString = addresses.join(",");
-  return `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${addressesString}&vs_currencies=usd`;
+export const getPriceInfoFromCoinGeckoUrl = (address: string) => {
+  return `https://api.coingecko.com/api/v3/coins/solana/market_chart?vs_currency=usd&days=1`;
 };
+
+// export const getGeckoPriceUrl = ({ addresses }: { addresses: string[] }) => {
+//   const addressesString = addresses.join(",");
+//   return `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${addressesString}&vs_currencies=usd`;
+// };
 
 export const getTokenRatingFromDexScreenerUrl = (address: string) => {
   return `https://cfw.dexscreener.com/sc/dex:solana:${address}`;
+};
+
+export const getQuoteFromJupiterUrl = ({
+  inputMint = "So11111111111111111111111111111111111111112",
+  outputMint,
+  amount,
+}: {
+  inputMint: string;
+  outputMint: string;
+  amount: string | number;
+}) => {
+  if (!inputMint || !outputMint || !amount) {
+    throw new Error("Missing inputMint, outputMint, or amount");
+  }
+  if (typeof amount === "number") {
+    amount = amount.toString();
+  }
+  return `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=1`;
 };
 
 export const getJupiterPriceUrl = ({

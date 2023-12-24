@@ -19,9 +19,11 @@ export const getLiquidityPoolsFromRaydium = async ({
       method: "GET",
     });
 
-    const pools = await poolsRes.json();
+    // const pools = await poolsRes.json();
 
-    console.log({ poolsRes, pools });
+    const pools = await poolsRes.body;
+
+    console.log({ pools });
 
     return pools;
   } catch (error) {

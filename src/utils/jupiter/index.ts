@@ -39,11 +39,11 @@ export const handleSwap = async ({
   console.log(2);
 
   // Retrieve the `indexed-route-map`
-  const indexedRouteMapResponse = await fetch(
-    "https://quote-api.jup.ag/v6/indexed-route-map"
-  );
+  const indexedRouteMap = await (
+    await fetch("https://quote-api.jup.ag/v6/indexed-route-map")
+  ).json();
+
   console.log(2.2);
-  const indexedRouteMap: IndexedRouteMap = await indexedRouteMapResponse.json();
   console.log(2.3);
   const getMint = (index: any) => indexedRouteMap["mintKeys"][index];
   console.log(2.4);

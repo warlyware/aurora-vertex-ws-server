@@ -1,6 +1,9 @@
 import axios from "axios";
 import { Day, Month, Year } from "../../constants/datetime";
-import { getLiquidityPoolsFromRaydiumUrl } from "../urls";
+import {
+  getBrowserLikeHeaders,
+  getLiquidityPoolsFromRaydiumUrl,
+} from "../urls";
 
 export const getLiquidityPoolsFromRaydium = async ({
   year = new Date().getFullYear().toString() as Year,
@@ -17,7 +20,7 @@ export const getLiquidityPoolsFromRaydium = async ({
 
   try {
     const { data: pools, status } = await axios.get(url, {
-      method: "GET",
+      headers: getBrowserLikeHeaders(),
     });
 
     if (!pools || status !== 200) {

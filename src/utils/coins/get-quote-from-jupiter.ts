@@ -1,4 +1,5 @@
 import { createJupiterApiClient } from "@jup-ag/api";
+import { getBrowserLikeHeaders } from "../urls";
 
 export const getQuoteFromJupiter = async ({
   inputMint,
@@ -18,7 +19,7 @@ export const getQuoteFromJupiter = async ({
   const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=1`;
 
   const quote = await fetch(url, {
-    method: "GET",
+    headers: getBrowserLikeHeaders(),
   });
 
   console.log({ url });

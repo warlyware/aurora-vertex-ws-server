@@ -2,6 +2,7 @@ import {
   DexscreenerCoinInfoResponse,
   GetTokenInfoFromDexscreenerResponse,
 } from "../../types";
+import { getBrowserLikeHeaders } from "../urls";
 
 export const getTokenInfoFromDexscreener = async ({
   address,
@@ -15,7 +16,7 @@ export const getTokenInfoFromDexscreener = async ({
   const url = `https://io.dexscreener.com/dex/pair-details/v2/solana/${address}`;
 
   const res = await fetch(url, {
-    method: "GET",
+    headers: getBrowserLikeHeaders(),
   });
 
   let data: DexscreenerCoinInfoResponse;

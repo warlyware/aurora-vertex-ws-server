@@ -4,19 +4,13 @@ import path from "path";
 import { createServer } from "http";
 import WebSocket from "ws";
 import { messageTypes } from "../types/messages";
-import { getQuoteFromJupiter } from "../utils/coins/get-quote-from-jupiter";
-import { getLiquidityPoolsFromRaydium } from "../utils/raydium/get-liquidity-pools-from-raydium";
-import { scrapeRugCheck } from "../utils/rug-check";
-import { handleSwap } from "../utils/jupiter";
+import { getClient } from "../utils/tg";
 
 const {
-  COIN_QUOTE_REQUEST,
-  GET_LIQUIDITY_POOLS_FROM_RAYDIUM,
   PING,
   PONG,
-  GET_LIQUIDITY_POOLS_FROM_RAYDIUM_RESPONSE,
-  GET_RUG_CHECK_INFO,
-  SWAP_TOKENS,
+  TG_GET_ME,
+  TG_GET_CHATS
 } = messageTypes;
 
 export const setupApp = () => {
@@ -54,49 +48,40 @@ export const setupEventListeners = (ws: WebSocket) => {
         );
         break;
       }
-      case COIN_QUOTE_REQUEST: {
+      case TG_GET_ME: {
         try {
-          const quote = await getQuoteFromJupiter(payload);
+          const tgClient = await getClient();
 
-          ws.send(JSON.stringify(quote));
+          const me = await tgClient.invoke({ _: 'getMe' });
+          console.log('My user:', me);
+
+
+          ws.send(JSON.stringify({
+            type: TG_GET_ME,
+            payload: {
+              me,
+            },
+          }));
         } catch (error) {
           console.error({ error });
         }
         break;
       }
-      case GET_LIQUIDITY_POOLS_FROM_RAYDIUM: {
+      case TG_GET_CHATS: {
         try {
-          const pools = await getLiquidityPoolsFromRaydium(payload);
+          const tgClient = await getClient();
 
-          ws.send(
-            JSON.stringify({
-              type: GET_LIQUIDITY_POOLS_FROM_RAYDIUM_RESPONSE,
-              payload: pools,
-            })
-          );
-        } catch (error) {
-          console.error({ error });
+          const chats = await tgClient.invoke({ _: 'getChats' });
+          console.log('Chats:', chats);
+
+          ws.send(JSON.stringify({
+            type: TG_GET_CHATS,
+            payload: {
+              chats,
+            },
+          }));
         }
-        break;
-      }
-      case SWAP_TOKENS: {
-        try {
-          const swap = await handleSwap(payload);
-
-          console.log({ swap });
-
-          ws.send(JSON.stringify(swap));
-        } catch (error) {
-          console.error({ error });
-        }
-        break;
-      }
-      case GET_RUG_CHECK_INFO: {
-        try {
-          const quote = await scrapeRugCheck(payload);
-
-          ws.send(JSON.stringify(quote));
-        } catch (error) {
+        catch (error) {
           console.error({ error });
         }
         break;

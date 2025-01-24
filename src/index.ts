@@ -7,8 +7,9 @@ import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 import { createTgClient } from "./utils/tg";
 
-
 const { wss } = setupApp();
+
+export const activeSockets = new Set<WebSocket>();
 
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");
@@ -18,8 +19,11 @@ wss.on("connection", async function (ws: WebSocket) {
   setupEventListeners(ws);
   await createTgClient(ws);
 
+  activeSockets.add(ws);
+
   ws.on("close", async function () {
     console.log("stopping client interval");
     clearInterval(id);
+    activeSockets.delete(ws);
   });
 });

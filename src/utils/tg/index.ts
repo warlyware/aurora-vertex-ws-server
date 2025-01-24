@@ -1,18 +1,23 @@
 import * as tdl from 'tdl';
 import { WebSocket } from 'ws';
 import { messageTypes } from '../../types/messages';
+import dayjs from 'dayjs';
+import { activeSockets } from '../..';
 
 let client: tdl.Client;
 
 type TGMessageUpdate = {
     _: string,
+    rawMessage?: any,
+    rawChat?: any,
     chat_id: string,
     last_message: {
         _: string,
         id: string,
         sender_id: {
             _: string,
-            chat_id: string,
+            chat_id?: string,
+            user_id?: string,
         },
         chat_id: string,
         content: {
@@ -55,6 +60,7 @@ const formatMessageFromUpdate = async (update: TGMessageUpdate) => {
         type: 'Unknown',
         photo: null,
     }
+
     try {
         chat = await tgClient.invoke({
             _: 'getChat',
@@ -67,17 +73,22 @@ const formatMessageFromUpdate = async (update: TGMessageUpdate) => {
 
     let sender;
 
-    // if (update.last_message.sender_id?.chat_id) {
-    //     sender = await tgClient.invoke({
-    //         _: 'getChatMember',
-    //         chat_id: update.last_message.chat_id,
-    //         member_id: update.last_message.sender_id,
-    //     }).catch(() => null);
-    // }
+    if (update.last_message.sender_id?.user_id) {
+        sender = await tgClient.invoke({
+            _: 'getUser',
+            // _: 'getUserFullInfo',
+            user_id: update.last_message.sender_id.user_id,
+        }).catch(() => null);
+        console.log('** SENDER FOUND **', sender);
+    }
+
 
     return {
         timestamp: Date.now(),
-        sender: sender,
+        rawMessage: update.last_message,
+        rawChat: chat,
+        formattedTimestamp: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        sender,
         chat: {
             title: chat?.title,
             type: chat?.type,
@@ -89,6 +100,7 @@ const formatMessageFromUpdate = async (update: TGMessageUpdate) => {
         messageId: update?.last_message?.id,
         senderIdObj: update?.last_message?.sender_id,
         text: update?.last_message?.content?.text?.text,
+        textEntities: update?.last_message?.content?.text?.entities,
     }
 }
 
@@ -121,17 +133,22 @@ export async function createTgClient(ws?: WebSocket) {
 
             if (message) {
                 if (ws) {
-                    ws.send(JSON.stringify({
-                        type: TG_CHAT_MESSAGE,
-                        payload: message,
-                    }));
+                    for (const ws of activeSockets) {
+                        if (ws.readyState === ws.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: messageTypes.TG_CHAT_MESSAGE,
+                                payload: message,
+                            }));
+                        }
+                    }
                 } else {
                     console.log('!!! No ws connection !!!');
                 }
 
                 console.log('** CHAT MESSAGE **', message);
+                console.log('** CHAT MESSAGE OBJ **', update);
             } else {
-                throw new Error('Error parsing message');
+                console.log('!! Invalid message:', update);
             }
         } else {
             // console.log('** UPDATE **', update);
@@ -139,9 +156,6 @@ export async function createTgClient(ws?: WebSocket) {
     });
 
     await client.login();
-
-    const me = await client.invoke({ _: 'getMe' });
-    console.log('My user:', me);
 
     return client;
 }

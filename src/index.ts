@@ -5,14 +5,10 @@ import WebSocket from "ws";
 import { setupApp, setupEventListeners } from "./setup";
 import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
-import { createTgClient } from "./utils/tg";
-import { getTestAsset } from "./utils/coins";
 
 const { wss } = setupApp();
 
 export const activeSockets = new Set<WebSocket>();
-
-getTestAsset();
 
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");

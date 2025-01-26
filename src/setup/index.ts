@@ -5,8 +5,10 @@ import { createServer } from "http";
 import WebSocket from "ws";
 import { messageTypes } from "../types/messages";
 import { getClient } from "../utils/tg";
+import { getCoinInfo } from "../utils/coins";
 
 const {
+  GET_COIN_INFO,
   PING,
   PONG,
   TG_GET_ME,
@@ -88,6 +90,17 @@ export const setupEventListeners = (ws: WebSocket) => {
       }
       default: {
         console.log("No handler for this type of message");
+      }
+      case GET_COIN_INFO: {
+        const coinInfo = await getCoinInfo(payload.address);
+
+        ws.send(
+          JSON.stringify({
+            type: GET_COIN_INFO,
+            payload: coinInfo,
+          })
+        );
+        break;
       }
     }
   });

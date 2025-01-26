@@ -15,8 +15,9 @@ async function fetchAssetByMint(mintAddress: string) {
   }
 }
 
-export const getTestAsset = async () => {
-  const testCoin = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'; // $BONK
-  const asset = await fetchAssetByMint(testCoin);
-  console.log('Asset:', asset);
+export const getCoinInfo = async (mintAddress: string) => {
+  // const testCoin = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'; // $BONK
+
+  const asset = await fetchAssetByMint(mintAddress);
+  return asset;
 }

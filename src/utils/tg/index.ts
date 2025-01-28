@@ -2,7 +2,7 @@ import * as tdl from 'tdl';
 import { WebSocket } from 'ws';
 import { messageTypes } from '../../types/messages';
 import dayjs from 'dayjs';
-import { activeSockets } from '../..';
+import { clients } from '../..';
 
 let client: tdl.Client;
 
@@ -133,7 +133,7 @@ export async function createTgClient(ws?: WebSocket) {
 
             if (message) {
                 if (ws) {
-                    for (const ws of activeSockets) {
+                    for (const ws of clients) {
                         if (ws.readyState === ws.OPEN) {
                             ws.send(JSON.stringify({
                                 type: messageTypes.TG_CHAT_MESSAGE,

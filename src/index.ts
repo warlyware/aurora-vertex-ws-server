@@ -7,6 +7,9 @@ import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
+import { messageTypes } from "./types/messages";
+
+const { BOT_MESSAGE } = messageTypes;
 
 const { wss } = setupApp();
 
@@ -15,7 +18,12 @@ export const clients = new Set<WebSocket>();
 export const logToClient = (message: string) => {
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      client.send(JSON.stringify({
+        type: BOT_MESSAGE,
+        payload: {
+          message,
+        },
+      }));
     }
   }
 };

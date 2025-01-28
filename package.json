@@ -5,8 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "tsc && node -r tsconfig-paths/register dist/index.js",
-    "dev": "pnpm start"
+    "start": "node -r tsconfig-paths/register dist/index.js",
+    "build": "tsc",
+    "dev": "pnpm run build && node -r tsconfig-paths/register dist/index.js"
   },
   "keywords": [],
   "author": "",

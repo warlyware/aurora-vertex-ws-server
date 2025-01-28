@@ -17,8 +17,8 @@ const request = {
 const { SOLANA_ACCOUNT_NOTIFICATION } = messageTypes;
 
 export const setupSolanaWatchers = (ws: WebSocket) => {
-  // const heliusWs = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`);
-  const heliusWs = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=678941fb-841a-4951-8b28-1dd44eb44c5f`);
+  const heliusWs = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`);
+
 
   const sendRequest = () => {
     heliusWs.send(JSON.stringify(request));

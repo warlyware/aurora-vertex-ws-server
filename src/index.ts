@@ -9,7 +9,15 @@ import { setupSolanaWatchers } from "./watchers/solana";
 
 const { wss } = setupApp();
 
-export const activeSockets = new Set<WebSocket>();
+export const clients = new Set<WebSocket>();
+
+export const logToClient = (message: string) => {
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+};
 
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");
@@ -20,11 +28,13 @@ wss.on("connection", async function (ws: WebSocket) {
   setupSolanaWatchers(ws);
   // await createTgClient(ws);
 
-  activeSockets.add(ws);
+  clients.add(ws);
 
   ws.on("close", async function () {
     console.log("stopping client interval");
     clearInterval(id);
-    activeSockets.delete(ws);
+    clients.delete(ws);
   });
 });
+
+

@@ -8,6 +8,11 @@ const bots: Map<string, {
 }> = new Map();
 
 export const spawnBot = (botId: string, strategy: string) => {
+  if (bots.has(botId)) {
+    console.log(`Bot ${botId} already exists. Skipping spawn.`);
+    return;
+  }
+
   const botScript = path.resolve(__dirname, './bot.js');
   const botProcess = fork(botScript);
 

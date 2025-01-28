@@ -103,21 +103,6 @@ export const setupEventListeners = (ws: WebSocket) => {
         );
         break;
       }
-      case BOT_SPAWN: {
-        console.log("Spawning bot with ID:", payload.botId);
-        spawnBot(payload.botId, payload.strategy);
-        break;
-      }
-      case BOT_STOP: {
-        console.log("Stopping bot with ID:", payload.botId);
-        stopBot(payload.botId);
-        break;
-      }
-      case BOT_RESTART: {
-        console.log("Restarting bot with ID:", payload.botId);
-        restartBot(payload.botId);
-        break;
-      }
       default: {
         console.log("No handler for this type of message");
       }

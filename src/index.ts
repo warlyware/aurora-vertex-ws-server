@@ -16,7 +16,6 @@ export const logToClient = (message: string) => {
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
-      console.log(`*** ${message}`);
     }
   }
 };

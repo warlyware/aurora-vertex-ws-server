@@ -3,10 +3,12 @@ import express from "express";
 import path from "path";
 import { createServer } from "http";
 import WebSocket from "ws";
-import { messageTypes } from "../types/messages";
+import { messageGroups, messageTypes } from "../types/messages";
 import { getClient } from "../utils/tg";
 import { getCoinInfo } from "../utils/coins";
 import { restartBot, spawnBot, stopBot } from "../bots/manager";
+import { setupBotManager } from "../bots";
+import { setupSolanaWatchers } from "../watchers/solana";
 
 const {
   BOT_SPAWN,
@@ -32,7 +34,11 @@ export const setupApp = () => {
   return { app, wss, server };
 };
 
-export const setupEventListeners = (ws: WebSocket) => {
+export const setupEventListeners = (
+  ws: WebSocket,
+  botManager: ReturnType<typeof setupBotManager>,
+  solanaWatchers: ReturnType<typeof setupSolanaWatchers>
+) => {
   ws.on("message", async function (message: string) {
     const { type, payload } = JSON.parse(message);
 
@@ -40,6 +46,9 @@ export const setupEventListeners = (ws: WebSocket) => {
       type,
       payload,
     });
+
+
+    const { BOTS, SOLANA } = messageGroups;
 
     switch (type) {
       case PING: {
@@ -54,6 +63,17 @@ export const setupEventListeners = (ws: WebSocket) => {
         );
         break;
       }
+
+      case BOTS.find((group) => group === type): {
+        botManager.handleMessage({ type, payload });
+        break;
+      }
+
+      case SOLANA.find((group) => group === type): {
+        solanaWatchers.handleMessage({ type, payload }, ws);
+        break;
+      }
+
       case TG_GET_ME: {
         try {
           const tgClient = await getClient();
@@ -98,7 +118,10 @@ export const setupEventListeners = (ws: WebSocket) => {
         ws.send(
           JSON.stringify({
             type: GET_COIN_INFO,
-            payload: coinInfo,
+            payload: {
+              timestamp: Date.now(),
+              coinInfo,
+            },
           })
         );
         break;

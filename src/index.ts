@@ -7,7 +7,7 @@ import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
-import { messageTypes } from "./types/messages";
+import { messageGroups, messageTypes } from "./types/messages";
 
 const { BOT_MESSAGE } = messageTypes;
 
@@ -21,6 +21,7 @@ export const logToClient = (message: string) => {
       client.send(JSON.stringify({
         type: BOT_MESSAGE,
         payload: {
+          timestamp: Date.now(),
           message,
         },
       }));
@@ -28,14 +29,15 @@ export const logToClient = (message: string) => {
   }
 };
 
+const botManager = setupBotManager();
+const solanaWatchers = setupSolanaWatchers();
+
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");
 
   const id = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
-  setupEventListeners(ws);
-  setupSolanaWatchers(ws);
-  setupBotManager(ws);
+  setupEventListeners(ws, botManager, solanaWatchers);
   // await createTgClient(ws);
 
   clients.add(ws);

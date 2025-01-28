@@ -2,37 +2,38 @@ import { WebSocket } from "ws";
 import { messageTypes } from "../types/messages";
 import { restartBot, spawnBot, stopBot } from "./manager";
 
-const {
-  BOT_SPAWN,
-  BOT_STOP,
-  BOT_RESTART,
-} = messageTypes;
+const { BOT_SPAWN, BOT_STOP, BOT_RESTART } = messageTypes;
 
-export const setupBotManager = (ws: WebSocket) => {
-  ws.on("message", async function (message: string) {
-    const { type, payload } = JSON.parse(message);
+export const setupBotManager = () => {
+  console.log("Bot Manager initialized");
 
-    console.log({
-      type,
-      payload,
-    });
+  return {
+    handleMessage: async (message: {
+      type: string;
+      payload: any;
+    }) => {
+      const { type, payload } = message;
 
-    switch (type) {
-      case BOT_SPAWN: {
-        const { botId, strategy } = payload;
-        spawnBot(botId, strategy);
-        break;
+      switch (type) {
+        case BOT_SPAWN: {
+          const { botId, strategy } = payload;
+          spawnBot(botId, strategy);
+          break;
+        }
+        case BOT_STOP: {
+          const { botId } = payload;
+          stopBot(botId);
+          break;
+        }
+        case BOT_RESTART: {
+          const { botId } = payload;
+          restartBot(botId);
+          break;
+        }
+        default:
+          console.warn("Unhandled message type:", type);
+          break;
       }
-      case BOT_STOP: {
-        const { botId } = payload;
-        stopBot(botId);
-        break;
-      }
-      case BOT_RESTART: {
-        const { botId } = payload;
-        restartBot(botId);
-        break;
-      }
-    }
-  });
-}
+    },
+  };
+};

@@ -35,6 +35,23 @@ export const messageTypes = {
   TG_CHAT_MESSAGE: MessageType.TG_CHAT_MESSAGE,
 };
 
+export const messageGroups = {
+  SOLANA: [
+    MessageType.SOLANA_ACCOUNT_NOTIFICATION,
+  ],
+  BOTS: [
+    MessageType.BOT_MESSAGE,
+    MessageType.BOT_SPAWN,
+    MessageType.BOT_STOP,
+    MessageType.BOT_RESTART,
+  ],
+  TELEGRAM: [
+    MessageType.TG_GET_ME,
+    MessageType.TG_GET_CHATS,
+    MessageType.TG_CHAT_MESSAGE,
+  ],
+};
+
 export type AuroraMessage = {
   type: MessageType;
   payload: any;

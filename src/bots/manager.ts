@@ -1,11 +1,22 @@
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
 import { logToClient } from '..';
+import { BotMessage } from './bot';
 
 const bots: Map<string, {
   process: ChildProcess,
   strategy: string
 }> = new Map();
+
+const sendToBotProcess = ({
+  type,
+  payload
+}: BotMessage, botProcess: ChildProcess) => {
+  botProcess.send(JSON.stringify({
+    type,
+    payload,
+  }));
+};
 
 export const spawnBot = (botId: string, strategy: string) => {
   if (bots.has(botId)) {
@@ -18,13 +29,16 @@ export const spawnBot = (botId: string, strategy: string) => {
 
   const keypair = `keypair-${botId}`;
 
-  botProcess.send({
-    botId,
-    keypair,
-    strategy,
-  });
+  sendToBotProcess({
+    type: 'start',
+    payload: {
+      botId,
+      keypair,
+      strategy,
+    }
+  }, botProcess);
 
-  botProcess.on('message', (message) => {
+  botProcess.on('message', (message: BotMessage) => {
     logToClient(`[${botId}] ${message}`);
   });
 

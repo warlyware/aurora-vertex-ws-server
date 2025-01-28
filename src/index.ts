@@ -6,6 +6,7 @@ import { setupApp, setupEventListeners } from "./setup";
 import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
+import { setupBotManager } from "./bots";
 
 const { wss } = setupApp();
 
@@ -15,6 +16,7 @@ export const logToClient = (message: string) => {
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
+      console.log(`*** ${message}`);
     }
   }
 };
@@ -26,6 +28,7 @@ wss.on("connection", async function (ws: WebSocket) {
   setupFolderWatchers(ws);
   setupEventListeners(ws);
   setupSolanaWatchers(ws);
+  setupBotManager(ws);
   // await createTgClient(ws);
 
   clients.add(ws);

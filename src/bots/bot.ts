@@ -4,7 +4,7 @@ process.on('message', (config: { botId: string; keypair: string; strategy: strin
   console.log(`[${botId}] Starting bot with strategy: ${strategy}`);
 
   const executeLogic = () => {
-    console.log(`[${botId}] Executing trading logic with keypair: ${keypair}`);
+    console.log(`[${botId}] Executing trading logic...`);
     process.send?.(`[${botId}] Trade executed`);
   };
 

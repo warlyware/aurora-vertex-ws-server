@@ -1,11 +1,17 @@
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
+import { logToClient } from '..';
 
-const bots: Map<string, ChildProcess> = new Map();
+const bots: Map<string, {
+  process: ChildProcess,
+  strategy: string
+}> = new Map();
 
-export const spawnBot = (botId: string, keypair: string, strategy: string) => {
+export const spawnBot = (botId: string, strategy: string) => {
   const botScript = path.resolve(__dirname, './bot.js');
   const botProcess = fork(botScript);
+
+  const keypair = `keypair-${botId}`;
 
   botProcess.send({
     botId,
@@ -14,29 +20,38 @@ export const spawnBot = (botId: string, keypair: string, strategy: string) => {
   });
 
   botProcess.on('message', (message) => {
-    console.log(`[Bot ${botId}] Message:`, message);
+    logToClient(`[Bot ${botId}] Message: ${message}`);
   });
 
   botProcess.on('exit', (code) => {
-    console.error(`[Bot ${botId}] Exited with code ${code}`);
+    logToClient(`[Bot ${botId}] Exited with code ${code}`);
     bots.delete(botId);
   });
 
-  bots.set(botId, botProcess);
-  console.log(`Bot ${botId} spawned.`);
+  bots.set(botId, {
+    process: botProcess,
+    strategy,
+  });
+
+  logToClient(`Bot ${botId} spawned.`);
 };
 
 export const stopBot = (botId: string) => {
-  const botProcess = bots.get(botId);
-  if (botProcess) {
-    botProcess.kill();
-    console.log(`Bot ${botId} stopped.`);
+  const bot = bots.get(botId);
+  if (bot) {
+    bot.process.kill();
+    logToClient(`Bot ${botId} stopped.`);
   } else {
-    console.error(`Bot ${botId} not found.`);
+    logToClient(`Bot ${botId} not found.`);
   }
 };
 
-export const restartBot = (botId: string, keypair: string, strategy: string) => {
+export const restartBot = (botId: string) => {
   stopBot(botId);
-  spawnBot(botId, keypair, strategy);
+  const strategy = bots.get(botId)?.strategy;
+  if (!strategy) {
+    logToClient(`Bot ${botId} has no strategy, aborting restart.`);
+    return;
+  }
+  spawnBot(botId, strategy);
 };

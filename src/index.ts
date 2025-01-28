@@ -5,6 +5,7 @@ import WebSocket from "ws";
 import { setupApp, setupEventListeners } from "./setup";
 import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
+import { setupSolanaWatchers } from "./watchers/solana";
 
 const { wss } = setupApp();
 
@@ -16,6 +17,7 @@ wss.on("connection", async function (ws: WebSocket) {
   const id = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
   setupEventListeners(ws);
+  setupSolanaWatchers(ws);
   // await createTgClient(ws);
 
   activeSockets.add(ws);

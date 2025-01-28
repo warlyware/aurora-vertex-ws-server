@@ -20,7 +20,7 @@ export const spawnBot = (botId: string, strategy: string) => {
   });
 
   botProcess.on('message', (message) => {
-    logToClient(`[Bot ${botId}] Message: ${message}`);
+    logToClient(`[${botId}] ${message}`);
   });
 
   botProcess.on('exit', (code) => {

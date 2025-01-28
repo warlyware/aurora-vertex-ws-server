@@ -6,8 +6,12 @@ import WebSocket from "ws";
 import { messageTypes } from "../types/messages";
 import { getClient } from "../utils/tg";
 import { getCoinInfo } from "../utils/coins";
+import { restartBot, spawnBot, stopBot } from "../bots/manager";
 
 const {
+  BOT_SPAWN,
+  BOT_STOP,
+  BOT_RESTART,
   GET_COIN_INFO,
   PING,
   PONG,
@@ -88,9 +92,6 @@ export const setupEventListeners = (ws: WebSocket) => {
         }
         break;
       }
-      default: {
-        console.log("No handler for this type of message");
-      }
       case GET_COIN_INFO: {
         const coinInfo = await getCoinInfo(payload.address);
 
@@ -101,6 +102,24 @@ export const setupEventListeners = (ws: WebSocket) => {
           })
         );
         break;
+      }
+      case BOT_SPAWN: {
+        console.log("Spawning bot with ID:", payload.botId);
+        spawnBot(payload.botId, payload.strategy);
+        break;
+      }
+      case BOT_STOP: {
+        console.log("Stopping bot with ID:", payload.botId);
+        stopBot(payload.botId);
+        break;
+      }
+      case BOT_RESTART: {
+        console.log("Restarting bot with ID:", payload.botId);
+        restartBot(payload.botId);
+        break;
+      }
+      default: {
+        console.log("No handler for this type of message");
       }
     }
   });

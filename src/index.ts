@@ -9,17 +9,17 @@ import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
 import { messageGroups, messageTypes } from "./types/messages";
 
-const { BOT_MESSAGE } = messageTypes;
+const { BOT_NOTIFICATION } = messageTypes;
 
 const { wss } = setupApp();
 
 export const clients = new Set<WebSocket>();
 
-export const logToClient = (message: string) => {
+export const logToClient = (message: string, type = BOT_NOTIFICATION) => {
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({
-        type: BOT_MESSAGE,
+        type,
         payload: {
           timestamp: Date.now(),
           message,

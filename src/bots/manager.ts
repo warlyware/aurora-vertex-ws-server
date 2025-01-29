@@ -2,6 +2,9 @@ import { fork, ChildProcess } from 'child_process';
 import path from 'path';
 import { logToClient } from '..';
 import { BotMessage } from './bot';
+import { messageTypes } from '../types/messages';
+
+const { BOT_SPAWN } = messageTypes;
 
 const bots: Map<string, {
   process: ChildProcess,
@@ -30,7 +33,7 @@ export const spawnBot = (botId: string, strategy: string) => {
   const keypair = `keypair-${botId}`;
 
   sendToBotProcess({
-    type: 'start',
+    type: BOT_SPAWN,
     payload: {
       botId,
       keypair,

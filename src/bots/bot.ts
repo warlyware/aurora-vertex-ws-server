@@ -1,5 +1,9 @@
+import { messageTypes } from "../types/messages";
+
+const { BOT_SPAWN, BOT_STATUS, BOT_TRADE_NOTIFICATION, BOT_NOTIFICATION } = messageTypes;
+
 export type BotMessage = {
-  type: 'start' | 'stop' | 'restart' | 'status';
+  type: typeof BOT_STATUS | typeof BOT_TRADE_NOTIFICATION;
   payload: {
     botId: string;
     keypair?: string;
@@ -41,7 +45,17 @@ export type BotMessage = {
   const initTrading = (botId: string) => {
     const executeTradeLogic = () => {
       console.log(`[${botId}] Executing trading logic...`);
-      process.send?.(`Executing trading logic...`);
+      process.send?.(
+        JSON.stringify({
+          type: BOT_TRADE_NOTIFICATION,
+          payload: {
+            botId,
+            time: Date.now(),
+            price: Math.random() * 100,
+            quantity: Math.random() * 10,
+          },
+        })
+      );
 
       updateStats({
         time: Date.now(),
@@ -54,12 +68,27 @@ export type BotMessage = {
   };
 
   const startBot = (botId: string, strategy: string, keypair: string) => {
-    process.send?.(`Starting bot with strategy: ${strategy}`);
+    console.log('Starting bot', botId);
+    process.send?.(JSON.stringify({
+      type: BOT_STATUS,
+      payload: {
+        ...status,
+        botId,
+      },
+    }));
 
     initTrading(botId);
 
     statusReportInterval = setInterval(() => {
-      process.send?.(`Bot status: ${JSON.stringify(status)}`);
+      process.send?.(
+        JSON.stringify({
+          type: BOT_STATUS,
+          payload: {
+            ...status,
+            botId,
+          },
+        })
+      );
     }, 1000);
   }
 
@@ -68,7 +97,7 @@ export type BotMessage = {
     const { botId, keypair, strategy } = payload;
 
     switch (type) {
-      case 'start':
+      case BOT_SPAWN:
         if (!strategy || !keypair) {
           console.error(`Missing required parameters for starting bot`);
           return;

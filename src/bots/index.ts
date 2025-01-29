@@ -1,4 +1,3 @@
-import { WebSocket } from "ws";
 import { messageTypes } from "../types/messages";
 import { restartBot, spawnBot, stopBot } from "./manager";
 

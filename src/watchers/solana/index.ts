@@ -70,26 +70,27 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
   heliusWs.on('message', function incoming(data) {
     const messageStr = data.toString('utf8');
     try {
-      const messageObj = JSON.parse(messageStr);
+      const messageObj: SolanaTxNotificationType['payload'] = JSON.parse(messageStr);
       console.log('Received:', messageObj);
 
-      const payload = JSON.stringify({
+      const payloadWithTimestamp: SolanaTxNotificationType = {
         type: SOLANA_TX_NOTIFICATION,
         payload: {
           timestamp: Date.now(),
           ...messageObj
         }
-      });
+      }
 
       if (messageObj.params?.result?.signature) {
-        recentTxCache.set(messageObj.params.result.signature, messageObj);
+        console.log(`Caching transaction at ${payloadWithTimestamp.payload.timestamp}: ${messageObj.params.result.signature}`);
+        recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
         pruneOldTransactions();
       }
 
       console.log('clients:', clients.size);
       for (const client of clients) {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(payload);
+          client.send(JSON.stringify(payloadWithTimestamp));
           console.log('Sent payload');
         } else {
           console.warn("Skipping closed WebSocket");
@@ -112,13 +113,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     restoreTransactionsForClient(ws: WebSocket) {
       console.log(`Restoring ${recentTxCache.size} transactions for new client`);
       for (const cachedTx of recentTxCache.values()) {
-        ws.send(JSON.stringify({
-          type: SOLANA_TX_NOTIFICATION,
-          payload: {
-            timestamp: Date.now(),
-            ...cachedTx
-          }
-        }));
+        ws.send(JSON.stringify(cachedTx));
       }
     },
 

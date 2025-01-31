@@ -1,5 +1,5 @@
 import { messageTypes } from "../types/messages";
-import { restartBot, spawnBot, stopBot } from "./manager";
+import { spawnBot, stopBot } from "./manager";
 
 const { BOT_SPAWN, BOT_STOP, BOT_RESTART } = messageTypes;
 
@@ -22,11 +22,6 @@ export const setupBotManager = () => {
         case BOT_STOP: {
           const { botId } = payload;
           stopBot(botId);
-          break;
-        }
-        case BOT_RESTART: {
-          const { botId } = payload;
-          restartBot(botId);
           break;
         }
         default:

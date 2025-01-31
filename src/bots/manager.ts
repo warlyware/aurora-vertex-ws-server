@@ -1,10 +1,10 @@
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
-import { logToClient } from '..';
+import { sendToConnectedClients } from '..';
 import { BotMessage } from './bot';
 import { messageTypes } from '../types/messages';
 
-const { BOT_SPAWN } = messageTypes;
+const { BOT_NOTIFICATION, BOT_SPAWN, BOT_STOP } = messageTypes;
 
 const bots: Map<string, {
   process: ChildProcess,
@@ -41,12 +41,20 @@ export const spawnBot = (botId: string, strategy: string) => {
     }
   }, botProcess);
 
-  botProcess.on('message', (message: BotMessage) => {
-    logToClient(`[${botId}] ${message}`);
+  botProcess.on('message', (message: string) => {
+    sendToConnectedClients(JSON.parse(message));
   });
 
   botProcess.on('exit', (code) => {
-    logToClient(`[Bot ${botId}] Exited with code ${code}`);
+    const exitMessage = code === 0 ? 'stopped successfully' : `crashed with code ${code}`;
+    sendToConnectedClients({
+      type: BOT_NOTIFICATION,
+      payload: {
+        botId,
+        info: `Bot ${botId} ${exitMessage}`
+      }
+    });
+
     bots.delete(botId);
   });
 
@@ -55,25 +63,32 @@ export const spawnBot = (botId: string, strategy: string) => {
     strategy,
   });
 
-  logToClient(`Bot ${botId} spawned.`);
+  sendToConnectedClients({
+    type: BOT_NOTIFICATION,
+    payload: {
+      botId,
+      info: `Bot ${botId} spawned`
+    }
+  });
 };
 
 export const stopBot = (botId: string) => {
   const bot = bots.get(botId);
   if (bot) {
-    bot.process.kill();
-    logToClient(`Bot ${botId} stopped.`);
+    sendToBotProcess({
+      type: BOT_STOP,
+      payload: {
+        botId
+      }
+    }, bot.process);
+    // bot.process.kill();
   } else {
-    logToClient(`Bot ${botId} not found.`);
+    sendToConnectedClients({
+      type: BOT_NOTIFICATION,
+      payload: {
+        botId,
+        info: `Bot ${botId} not found`
+      }
+    });
   }
-};
-
-export const restartBot = (botId: string) => {
-  stopBot(botId);
-  const strategy = bots.get(botId)?.strategy;
-  if (!strategy) {
-    logToClient(`Bot ${botId} has no strategy, aborting restart.`);
-    return;
-  }
-  spawnBot(botId, strategy);
 };

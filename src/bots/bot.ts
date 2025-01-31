@@ -1,9 +1,9 @@
 import { messageTypes } from "../types/messages";
 
-const { BOT_SPAWN, BOT_STATUS, BOT_TRADE_NOTIFICATION, BOT_NOTIFICATION } = messageTypes;
+const { BOT_SPAWN, BOT_STATUS, BOT_TRADE_NOTIFICATION, BOT_NOTIFICATION, BOT_STOP } = messageTypes;
 
 export type BotMessage = {
-  type: typeof BOT_STATUS | typeof BOT_TRADE_NOTIFICATION;
+  type: typeof BOT_STATUS | typeof BOT_TRADE_NOTIFICATION | typeof BOT_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
   payload: {
     botId: string;
     keypair?: string;
@@ -92,7 +92,7 @@ export type BotMessage = {
     }, 1000);
   }
 
-  process.on('message', (message: string) => {
+  process.on('message', async (message: string) => {
     const { type, payload } = JSON.parse(message);
     const { botId, keypair, strategy } = payload;
 
@@ -103,6 +103,22 @@ export type BotMessage = {
           return;
         }
         startBot(botId, strategy, keypair);
+        break;
+      case BOT_STOP:
+        console.log(`Stopping bot ${botId}`);
+        cleanup();
+
+        await process.send?.(JSON.stringify({
+          type: BOT_STATUS,
+          payload: {
+            ...status,
+            isActive: false,
+            info: `Bot ${botId} stopped successfully`,
+            botId,
+          },
+        }));
+
+        process.exit(0);
         break;
       default:
         console.log(`Unknown message message.type: ${type}`);
@@ -117,7 +133,6 @@ export type BotMessage = {
     if (statusReportInterval) {
       clearInterval(statusReportInterval);
     }
-    process.exit(0);
   };
 
   process.on('SIGTERM', cleanup);

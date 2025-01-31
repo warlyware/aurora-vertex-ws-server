@@ -42,8 +42,8 @@ dependencies:
     specifier: ^4.18.2
     version: 4.18.2
   helius-sdk:
-    specifier: ^1.4.1
-    version: 1.4.1(arweave@1.15.5)
+    specifier: ^1.4.2
+    version: 1.4.2(arweave@1.15.5)
   needle:
     specifier: ^3.3.1
     version: 3.3.1
@@ -64,7 +64,7 @@ dependencies:
     version: 5.3.3
   ws:
     specifier: ^8.15.1
-    version: 8.15.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+    version: 8.15.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
 
 devDependencies:
   '@types/express':
@@ -1495,8 +1495,8 @@ packages:
       ieee754: 1.2.1
     dev: false
 
-  /bufferutil@4.0.8:
-    resolution: {integrity: sha512-4T53u4PdgsXqKaIctwF8ifXlRTTmEPJ8iEPWFdGZvcf7sbwYo6FKFEX9eNNAnzFZ7EzJAQ3CJeOtCRA4rDp7Pw==}
+  /bufferutil@4.0.9:
+    resolution: {integrity: sha512-WDtdLmJvAuNNPzByAYpRo2rF1Mmradw6gvWsQKf63476DDXmomT9zUiGypLcG4ibIM67vhAj8jJRdbmEws2Aqw==}
     engines: {node: '>=6.14.2'}
     requiresBuild: true
     dependencies:
@@ -2457,8 +2457,8 @@ packages:
       function-bind: 1.1.2
     dev: false
 
-  /helius-sdk@1.4.1(arweave@1.15.5):
-    resolution: {integrity: sha512-DsMNJxkDnP5f0GmKf/+LQz14VNo+IK8F760Y6CynNNmAdUH1bpGYP6tCdba5q/o58ea21gx2gC330FAVI4ZWhQ==}
+  /helius-sdk@1.4.2(arweave@1.15.5):
+    resolution: {integrity: sha512-c7ZIoFzXeR39Qf9YaY0jX2u7dMnGC49zuJVrEQQe3KzRYJ1yBooriNmVeAn5TmuTwFrpko53dkLW88221XRGdA==}
     dependencies:
       '@irys/sdk': 0.2.11(arweave@1.15.5)
       '@metaplex-foundation/mpl-token-metadata': 2.13.0
@@ -3270,7 +3270,7 @@ packages:
       cross-fetch: 4.0.0
       debug: 4.3.4
       devtools-protocol: 0.0.1203626
-      ws: 8.15.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      ws: 8.15.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -3398,9 +3398,9 @@ packages:
       '@babel/runtime': 7.23.6
       eventemitter3: 4.0.7
       uuid: 8.3.2
-      ws: 8.15.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      ws: 8.15.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:
-      bufferutil: 4.0.8
+      bufferutil: 4.0.9
       utf-8-validate: 5.0.10
     dev: false
 
@@ -3909,7 +3909,7 @@ packages:
         optional: true
     dev: false
 
-  /ws@8.15.1(bufferutil@4.0.8)(utf-8-validate@5.0.10):
+  /ws@8.15.1(bufferutil@4.0.9)(utf-8-validate@5.0.10):
     resolution: {integrity: sha512-W5OZiCjXEmk0yZ66ZN82beM5Sz7l7coYxpRkzS+p9PP+ToQry8szKh+61eNktr7EA9DOwvFGhfC605jDHbP6QQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
@@ -3921,7 +3921,7 @@ packages:
       utf-8-validate:
         optional: true
     dependencies:
-      bufferutil: 4.0.8
+      bufferutil: 4.0.9
       utf-8-validate: 5.0.10
     dev: false
 

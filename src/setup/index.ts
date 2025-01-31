@@ -6,14 +6,10 @@ import WebSocket from "ws";
 import { messageGroups, messageTypes } from "../types/messages";
 import { getClient } from "../utils/tg";
 import { getCoinInfo } from "../utils/coins";
-import { restartBot, spawnBot, stopBot } from "../bots/manager";
 import { setupBotManager } from "../bots";
 import { setupSolanaWatchers } from "../watchers/solana";
 
 const {
-  BOT_SPAWN,
-  BOT_STOP,
-  BOT_RESTART,
   GET_COIN_INFO,
   PING,
   PONG,

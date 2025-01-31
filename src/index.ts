@@ -7,40 +7,33 @@ import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
-import { messageGroups, messageTypes } from "./types/messages";
-
-const { BOT_NOTIFICATION } = messageTypes;
+import { BotMessage } from "./bots/bot";
 
 const { wss } = setupApp();
 
 export const clients = new Set<WebSocket>();
 
-export const logToClient = (message: string, type = BOT_NOTIFICATION) => {
+export const sendToConnectedClients = (message: BotMessage) => {
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({
-        type,
-        payload: {
-          timestamp: Date.now(),
-          message,
-        },
-      }));
+      client.send(JSON.stringify(message));
     }
   }
 };
 
 const botManager = setupBotManager();
-const solanaWatchers = setupSolanaWatchers();
+const solanaWatchers = setupSolanaWatchers(clients);
 
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");
 
+  clients.add(ws);
+
   const id = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
   setupEventListeners(ws, botManager, solanaWatchers);
+  solanaWatchers.restoreTransactionsForClient(ws);
   // await createTgClient(ws);
-
-  clients.add(ws);
 
   ws.on("close", async function () {
     console.log("stopping client interval");

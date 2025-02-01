@@ -4,8 +4,6 @@ import { Helius } from "helius-sdk";
 
 const helius = new Helius(HELIUS_API_KEY);
 
-console.log('HELIUS_API_KEY:', HELIUS_API_KEY);
-
 async function fetchAssetByMint(mintAddress: string) {
   try {
     const asset = await helius.rpc.getAsset({

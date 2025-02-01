@@ -32,7 +32,9 @@ wss.on("connection", async function (ws: WebSocket) {
   const id = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
   setupEventListeners(ws, botManager, solanaWatchers);
-  solanaWatchers.restoreTransactionsForClient(ws);
+  if (solanaWatchers) {
+    solanaWatchers.restoreTransactionsForClient(ws);
+  }
   // await createTgClient(ws);
 
   ws.on("close", async function () {

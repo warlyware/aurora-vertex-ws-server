@@ -33,7 +33,7 @@ const { SOLANA_TX_NOTIFICATION } = messageTypes;
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 
-const MAX_CACHE_SIZE = 100;
+const MAX_CACHE_SIZE = 1000;
 
 const pruneOldTransactions = () => {
   while (recentTxCache.size > MAX_CACHE_SIZE) {

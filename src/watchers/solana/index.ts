@@ -11,7 +11,7 @@ const transactionSubscribeRequest = {
       "vote": false,
       "failed": false,
       "accountInclude": [
-        "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj", // 🧠
+        "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj", // 🧠 Euris
         // "6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7", // high activity
         // "6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf", // high activity
         // "BieeZkdnBAgNYknzo3RH2vku7FcPkFZMZmRJANh2TpW",    
@@ -33,12 +33,14 @@ const { SOLANA_TX_NOTIFICATION } = messageTypes;
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 
-const MAX_CACHE_SIZE = 100; // Store last 100 transactions
+const MAX_CACHE_SIZE = 100;
 
 const pruneOldTransactions = () => {
-  if (recentTxCache.size > MAX_CACHE_SIZE) {
-    const oldestKeys = Array.from(recentTxCache.keys()).slice(0, recentTxCache.size - MAX_CACHE_SIZE);
-    oldestKeys.forEach(key => recentTxCache.delete(key));
+  while (recentTxCache.size > MAX_CACHE_SIZE) {
+    const oldestKey = recentTxCache.keys().next().value;
+    if (oldestKey) {
+      recentTxCache.delete(oldestKey);
+    }
   }
 };
 
@@ -58,7 +60,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         heliusWs.ping();
         console.log('Ping sent');
       }
-    }, 30000); // Ping every 30 seconds
+    }, 30000);
   }
 
   heliusWs.on('open', function open() {
@@ -106,7 +108,8 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
   });
 
   heliusWs.on('close', function close() {
-    console.log('Helius WebSocket is closed');
+    console.log('Helius WebSocket is closed, attempting to reconnect...');
+    setTimeout(() => setupSolanaWatchers(clients), 3000);
   });
 
   return {

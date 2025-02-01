@@ -66,6 +66,10 @@ export const setupEventListeners = (
       }
 
       case SOLANA.find((group) => group === type): {
+        if (!solanaWatchers) {
+          console.error("Solana watchers not initialized");
+          return;
+        }
         solanaWatchers.handleMessage({ type, payload }, ws);
         break;
       }

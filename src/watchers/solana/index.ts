@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import WebSocket from 'ws';
 import { messageTypes } from '../../types/messages';
 import { SolanaTxNotificationType } from '../../types/solana';
@@ -16,7 +17,18 @@ const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 
-const redis = new Redis();
+let redis: Redis | null = null;
+
+(() => {
+  console.log('process.env.IS_PRODUCTION:', !!process.env.IS_PRODUCTION);
+
+  if (process.env.IS_PRODUCTION) {
+    redis = new Redis();
+    console.log('✅ Redis connected in production mode');
+  } else {
+    console.log('🚨 Redis not connected in development mode');
+  }
+})();
 
 const pruneOldTransactions = () => {
   while (recentTxCache.size > MAX_CACHE_SIZE) {
@@ -62,13 +74,13 @@ const reconnect = (clients: Set<WebSocket>) => {
 };
 
 const storeTransaction = async (signature: string, transaction: any) => {
-  if (!process.env.IS_PRODUCTION) return;
+  if (!process.env.IS_PRODUCTION || !redis) return;
 
   await redis.set(`tx:${signature}`, JSON.stringify(transaction));
 };
 
 const restoreTransactions = async () => {
-  if (!process.env.IS_PRODUCTION) return;
+  if (!process.env.IS_PRODUCTION || !redis) return;
 
   const keys = await redis.keys('tx:*');
   const transactions = await redis.mget(keys);

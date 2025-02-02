@@ -32,8 +32,12 @@ const closeWebSocket = () => {
   }
 };
 
-const logEvent = (event: string) => {
-  console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
+const logEvent = (event: string, isBackup = false) => {
+  if (isBackup) {
+    console.log(`BACKUP: ${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
+    return;
+  }
+  console.log(`PRIMARY: ${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
 }
 
 const reconnect = (clients: Set<WebSocket>) => {
@@ -91,11 +95,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       ]
     }));
 
+    logEvent(`Subscribed to transaction notifications`);
+
     setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
         wsInstance.ping();
       }
-    }, 15000);
+    }, 30000);
   });
 
   wsInstance.on('message', (data) => {

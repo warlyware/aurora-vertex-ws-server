@@ -231,7 +231,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   wsInstance.on('error', (err) => {
     logEvent(`${isBackup ? "Backup" : "Primary"} WS Error: ${err}`, isBackup);
 
-    reconnect(clients);
+    reconnect(clients, isBackup);
   });
 
   wsInstance.on('close', (code, reason) => {
@@ -239,7 +239,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
     logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket closed. Attempting to reconnect...`, isBackup);
     logEvent(`Code ${code}, Reason: ${reason}`, isBackup);
 
-    reconnect(clients);
+    reconnect(clients, isBackup);
   });
 
   if (isBackup) {

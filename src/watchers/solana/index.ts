@@ -216,14 +216,11 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       }
     };
 
-    setInterval(() => {
-      checkConnectionHealth(clients, isBackup);
-    }, 60000);
+    setTimeout(() => checkConnectionHealth(clients, isBackup), 60000 - ((Date.now() - lastReceivedMessageTimestamp) % 60000));
+
   });
 
   wsInstance.on('message', (data) => {
-    logEvent(`Received message: ${data.toString('utf8')}`, isBackup);
-
     try {
       const messageObj: SolanaTxNotificationType['payload'] = JSON.parse(data.toString('utf8'));
 

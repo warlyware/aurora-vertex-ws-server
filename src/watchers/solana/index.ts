@@ -32,7 +32,7 @@ const closeWebSocket = () => {
   }
 };
 
-const logEvent = (event: string, isBackup = false) => {
+const logEvent = (event: string, isBackup: boolean) => {
   if (isBackup) {
     console.log(`BACKUP: ${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
     return;
@@ -67,7 +67,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   );
 
   wsInstance.on('open', () => {
-    logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket is open`);
+    logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket is open`, isBackup);
     reconnectAttempts = 0;
 
     wsInstance!.send(JSON.stringify({
@@ -95,7 +95,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       ]
     }));
 
-    logEvent(`Subscribed to transaction notifications`);
+    logEvent(`Subscribed to transaction notifications`, isBackup);
 
     setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
@@ -129,7 +129,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
         }
       };
 
-      logEvent(`Caching transaction at ${payloadWithTimestamp.payload.timestamp}: ${messageObj.params.result.signature}`);
+      logEvent(`Caching transaction at ${payloadWithTimestamp.payload.timestamp}: ${messageObj.params.result.signature}`, isBackup);
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
 
@@ -144,15 +144,15 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   });
 
   wsInstance.on('error', (err) => {
-    logEvent(`${isBackup ? "Backup" : "Primary"} WS Error: ${err}`);
+    logEvent(`${isBackup ? "Backup" : "Primary"} WS Error: ${err}`, isBackup);
 
     reconnect(clients);
   });
 
   wsInstance.on('close', (code, reason) => {
     // console.warn(`Helius WebSocket closed: Code ${code}, Reason: ${reason}`);
-    logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket closed. Attempting to reconnect...`);
-    logEvent(`Code ${code}, Reason: ${reason}`);
+    logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket closed. Attempting to reconnect...`, isBackup);
+    logEvent(`Code ${code}, Reason: ${reason}`, isBackup);
 
     reconnect(clients);
   });
@@ -170,7 +170,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       const firstValue = recentTxCache.size ? recentTxCache.values().next().value : null;
       const lastMessageTime = firstValue ? firstValue.payload.timestamp : 0;
       if (heliusWs && lastMessageTime && Date.now() - lastMessageTime > MAX_SILENCE_DURATION) {
-        logEvent('No messages received in 2 minutes. Restarting WebSocket...');
+        logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
         closeWebSocket();
         setupSolanaWatchers(clients);
       }
@@ -178,13 +178,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       return true;
     },
     restoreTransactionsForClient(ws: WebSocket) {
-      logEvent(`Restoring ${recentTxCache.size} transactions for new client`);
+      logEvent(`Restoring ${recentTxCache.size} transactions for new client`, isBackup);
       for (const cachedTx of recentTxCache.values()) {
         ws.send(JSON.stringify(cachedTx));
       }
     },
     setupBackupConnection: () => {
-      logEvent('Setting up backup connection');
+      logEvent('Setting up backup connection', isBackup);
 
       setupSolanaWatchers(clients);
     },
@@ -196,7 +196,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
         case SOLANA_TX_NOTIFICATION:
           break;
         default:
-          logEvent(`Unknown message type: ${type}`);
+          logEvent(`Unknown message type: ${type}`, isBackup);
           break;
       }
     }

@@ -190,7 +190,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
     const checkConnectionHealth = async (clients: Set<WebSocket>, isBackup: boolean) => {
       const MAX_SILENCE_DURATION = 120000;
-      const backupSilenceThreshold = MAX_SILENCE_DURATION + 2000;
+      const backupSilenceThreshold = MAX_SILENCE_DURATION + 11000;
       const threshold = isBackup ? backupSilenceThreshold : MAX_SILENCE_DURATION;
 
       if ((isBackup && isBackupReconnecting) || (!isBackup && isPrimaryReconnecting)) {

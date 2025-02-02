@@ -196,17 +196,17 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       }
 
       if (Date.now() - lastReceivedMessageTimestamp > MAX_SILENCE_DURATION) {
-        logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
-
         if (isBackup) {
           isBackupReconnecting = true;
         } else {
           isPrimaryReconnecting = true;
         }
 
-        if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
+        if (isBackup) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
+
+        logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
 
         closeWebSocket(isBackup);
         await new Promise((resolve) => setTimeout(resolve, 500));

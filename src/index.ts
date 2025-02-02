@@ -25,7 +25,11 @@ const botManager = setupBotManager();
 const solanaWatchers = setupSolanaWatchers(clients);
 
 setTimeout(() => {
-  setupSolanaWatchers(clients, true);
+  if (!solanaWatchers?.backupExists()) {
+    setupSolanaWatchers(clients, true);
+  } else {
+    console.log("Backup WebSocket already exists. Skipping startup.");
+  }
 }, 10000);
 
 wss.on("connection", async function (ws: WebSocket) {

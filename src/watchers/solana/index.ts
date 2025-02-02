@@ -226,16 +226,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   }
 
   return {
+    backupExists: () => !!heliusBackupWs,
+
     restoreTransactionsForClient(ws: WebSocket) {
       logEvent(`Restoring ${recentTxCache.size} transactions for new client`, isBackup);
       for (const cachedTx of recentTxCache.values()) {
         ws.send(JSON.stringify(cachedTx));
       }
-    },
-    setupBackupConnection: () => {
-      logEvent('Setting up backup connection', isBackup);
-
-      setupSolanaWatchers(clients);
     },
 
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {

@@ -205,7 +205,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
         }
 
         if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
-          await new Promise((resolve) => setTimeout(resolve, 5000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
         closeWebSocket(isBackup);
@@ -218,7 +218,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
     setInterval(() => {
       checkConnectionHealth(clients, isBackup);
-    }, 30000);
+    }, 5000);
   });
 
   wsInstance.on('message', (data) => {

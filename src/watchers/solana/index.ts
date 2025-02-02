@@ -16,6 +16,8 @@ const processedSignatures = new Set<string>();
 const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
+let lastReceivedMessageTimestamp = Date.now();
+
 
 let redis: Redis | null = null;
 
@@ -79,6 +81,8 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   );
 
   const closeWebSocket = () => {
+    if (!heliusWs && !heliusBackupWs) return;
+
     if (heliusWs && !isBackup) {
       heliusWs.removeAllListeners();
       heliusWs.close();
@@ -149,13 +153,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       }
     }, 30000);
 
-    const checkConnectionHealth = (clients: Set<WebSocket>) => {
+    const checkConnectionHealth = async (clients: Set<WebSocket>) => {
       const MAX_SILENCE_DURATION = 120000;
-      const firstValue = recentTxCache.size ? recentTxCache.values().next().value : null;
-      const lastMessageTime = firstValue ? firstValue.payload.timestamp : 0;
-      if (heliusWs && lastMessageTime && Date.now() - lastMessageTime > MAX_SILENCE_DURATION) {
+      if (Date.now() - lastReceivedMessageTimestamp > MAX_SILENCE_DURATION) {
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
+        await new Promise((resolve) => setTimeout(resolve, isBackup ? 10000 : 0));
         closeWebSocket();
+        await new Promise((resolve) => setTimeout(resolve, isBackup ? 500 : 0));
         setupSolanaWatchers(clients, isBackup);
       }
     };
@@ -194,6 +198,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
+      lastReceivedMessageTimestamp = Date.now();
 
       for (const client of clients) {
         if (client.readyState === WebSocket.OPEN) {

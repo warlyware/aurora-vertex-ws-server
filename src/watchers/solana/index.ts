@@ -203,7 +203,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
         }
 
         if (isBackup) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
         }
 
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);

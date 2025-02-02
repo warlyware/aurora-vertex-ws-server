@@ -17,6 +17,8 @@ const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 let lastReceivedMessageTimestamp = Date.now();
+let isPrimaryReconnecting = false;
+let isBackupReconnecting = false;
 
 
 let redis: Redis | null = null;
@@ -80,36 +82,45 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
     `wss://atlas-mainnet.helius-rpc.com/?api-key=${isBackup ? process.env.HELIUS_API_KEY_2 : process.env.HELIUS_API_KEY}`
   );
 
-  const closeWebSocket = () => {
-    if (!heliusWs && !heliusBackupWs) return;
-
-    if (heliusWs && !isBackup) {
+  const closeWebSocket = (isBackup: boolean) => {
+    if (isBackup) {
+      if (!heliusBackupWs) return;
+      heliusBackupWs.removeAllListeners();
+      heliusBackupWs.close();
+      heliusBackupWs = null;
+    } else {
+      if (!heliusWs) return;
       heliusWs.removeAllListeners();
       heliusWs.close();
       heliusWs = null;
     }
-    if (heliusBackupWs && isBackup) {
-      heliusBackupWs.removeAllListeners();
-      heliusBackupWs.close();
-      heliusBackupWs = null;
-    }
   };
 
-  const reconnect = (clients: Set<WebSocket>) => {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnect attempts reached. Stopping.');
+  const reconnect = (clients: Set<WebSocket>, isBackup: boolean) => {
+    if (isBackup && isBackupReconnecting) {
+      console.log("Backup WebSocket already reconnecting. Skipping duplicate attempt.");
+      return;
+    }
+    if (!isBackup && isPrimaryReconnecting) {
+      console.log("Primary WebSocket already reconnecting. Skipping duplicate attempt.");
       return;
     }
 
-    console.log(`Attempting to reconnect...`);
+    console.log(`Attempting to reconnect ${isBackup ? "Backup" : "Primary"} WebSocket...`);
+
+    if (isBackup) isBackupReconnecting = true;
+    else isPrimaryReconnecting = true;
 
     const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
     reconnectAttempts++;
 
     setTimeout(() => {
-      console.log(`Reconnecting in ${delay / 1000}s...`);
-      closeWebSocket();
+      console.log(`Reconnecting ${isBackup ? "Backup" : "Primary"} WebSocket in ${delay / 1000}s...`);
+      closeWebSocket(isBackup);
       setupSolanaWatchers(clients, isBackup);
+
+      if (isBackup) isBackupReconnecting = false;
+      else isPrimaryReconnecting = false;
     }, delay);
   };
 
@@ -153,19 +164,26 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       }
     }, 30000);
 
-    const checkConnectionHealth = async (clients: Set<WebSocket>) => {
-      const MAX_SILENCE_DURATION = 120000;
+    const checkConnectionHealth = async (clients: Set<WebSocket>, isBackup: boolean) => {
+      const MAX_SILENCE_DURATION = 120000; // 2 minutes
+      if ((isBackup && isBackupReconnecting) || (!isBackup && isPrimaryReconnecting)) {
+        logEvent(`Skipping connection health check: ${isBackup ? "Backup" : "Primary"} is already reconnecting.`, isBackup);
+        return;
+      }
+
       if (Date.now() - lastReceivedMessageTimestamp > MAX_SILENCE_DURATION) {
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
-        await new Promise((resolve) => setTimeout(resolve, isBackup ? 10000 : 0));
-        closeWebSocket();
-        await new Promise((resolve) => setTimeout(resolve, isBackup ? 500 : 0));
+
+        // Stagger the restart times slightly to avoid simultaneous reconnections
+        await new Promise((resolve) => setTimeout(resolve, isBackup ? 15000 : 5000));
+
+        closeWebSocket(isBackup);
         setupSolanaWatchers(clients, isBackup);
       }
     };
 
     setInterval(() => {
-      checkConnectionHealth(clients);
+      checkConnectionHealth(clients, isBackup);
     }, 60000);
   });
 

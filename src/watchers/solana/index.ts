@@ -97,35 +97,59 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   };
 
   const reconnect = (clients: Set<WebSocket>, isBackup: boolean) => {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('Max reconnect attempts reached. Stopping.');
+      return;
+    }
+
     if (isBackup && isBackupReconnecting) {
-      console.log("Backup WebSocket already reconnecting. Skipping duplicate attempt.");
+      console.warn("Backup WebSocket already reconnecting, skipping...");
       return;
     }
+
     if (!isBackup && isPrimaryReconnecting) {
-      console.log("Primary WebSocket already reconnecting. Skipping duplicate attempt.");
+      console.warn("Primary WebSocket already reconnecting, skipping...");
       return;
     }
 
-    console.log(`Attempting to reconnect ${isBackup ? "Backup" : "Primary"} WebSocket...`);
-
-    if (isBackup) isBackupReconnecting = true;
-    else isPrimaryReconnecting = true;
+    // Mark that a reconnection is in progress
+    if (isBackup) {
+      isBackupReconnecting = true;
+    } else {
+      isPrimaryReconnecting = true;
+    }
 
     const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
     reconnectAttempts++;
 
+    console.log(`Reconnecting ${isBackup ? "Backup" : "Primary"} WebSocket in ${delay / 1000}s...`);
+
     setTimeout(() => {
-      console.log(`Reconnecting ${isBackup ? "Backup" : "Primary"} WebSocket in ${delay / 1000}s...`);
       closeWebSocket(isBackup);
+
       setupSolanaWatchers(clients, isBackup);
 
-      if (isBackup) isBackupReconnecting = false;
-      else isPrimaryReconnecting = false;
+      // Reset the flag once the WebSocket is successfully opened
+      setTimeout(() => {
+        if (isBackup) {
+          isBackupReconnecting = false;
+        } else {
+          isPrimaryReconnecting = false;
+        }
+      }, 5000); // Buffer to ensure reconnection has fully completed before resetting
     }, delay);
   };
 
   wsInstance.on('open', () => {
     logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket is open`, isBackup);
+
+    if (isBackup) {
+      isBackupReconnecting = false;
+    } else {
+      isPrimaryReconnecting = false;
+    }
+
+    lastReceivedMessageTimestamp = Date.now();
 
     if (!isBackup) restoreTransactions();
 

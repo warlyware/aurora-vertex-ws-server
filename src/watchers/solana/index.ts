@@ -96,18 +96,6 @@ const restoreTransactions = async () => {
   }
 }
 
-const checkConnectionHealth = (clients: Set<WebSocket>) => {
-  const now = Date.now();
-  const MAX_SILENCE_DURATION = 120000;
-  const firstValue = recentTxCache.size ? recentTxCache.values().next().value : null;
-  const lastMessageTime = firstValue ? firstValue.payload.timestamp : 0;
-  if (heliusWs && lastMessageTime && Date.now() - lastMessageTime > MAX_SILENCE_DURATION) {
-    console.warn('No messages received in 2 minutes. Restarting WebSocket...');
-    closeWebSocket();
-    setupSolanaWatchers(clients);
-  }
-};
-
 export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) => {
   if (heliusWs && !isBackup) return;
   if (isBackup && heliusBackupWs) return;
@@ -155,6 +143,17 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
         wsInstance.ping();
       }
     }, 30000);
+
+    const checkConnectionHealth = (clients: Set<WebSocket>) => {
+      const MAX_SILENCE_DURATION = 120000;
+      const firstValue = recentTxCache.size ? recentTxCache.values().next().value : null;
+      const lastMessageTime = firstValue ? firstValue.payload.timestamp : 0;
+      if (heliusWs && lastMessageTime && Date.now() - lastMessageTime > MAX_SILENCE_DURATION) {
+        logEvent('No messages received in 2 minutes. Restarting WebSocket...', false);
+        closeWebSocket();
+        setupSolanaWatchers(clients);
+      }
+    };
 
     setInterval(() => {
       checkConnectionHealth(clients);

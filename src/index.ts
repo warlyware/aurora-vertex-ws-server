@@ -24,14 +24,6 @@ export const sendToConnectedClients = (message: BotMessage) => {
 const botManager = setupBotManager();
 const solanaWatchers = setupSolanaWatchers(clients);
 
-setTimeout(() => {
-  if (!solanaWatchers?.backupExists()) {
-    setupSolanaWatchers(clients, true);
-  } else {
-    console.log("Backup WebSocket already exists. Skipping startup.");
-  }
-}, 10000);
-
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");
 

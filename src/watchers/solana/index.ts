@@ -151,7 +151,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       if (heliusWs && lastMessageTime && Date.now() - lastMessageTime > MAX_SILENCE_DURATION) {
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
         closeWebSocket();
-        setupSolanaWatchers(clients);
+        setupSolanaWatchers(clients, isBackup);
       }
     };
 

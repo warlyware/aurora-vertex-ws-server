@@ -23,6 +23,7 @@ export const sendToConnectedClients = (message: BotMessage) => {
 
 const botManager = setupBotManager();
 const solanaWatchers = setupSolanaWatchers(clients);
+const backupSolanaWatchers = setupSolanaWatchers(clients, true);
 
 wss.on("connection", async function (ws: WebSocket) {
   console.log("Client connected");

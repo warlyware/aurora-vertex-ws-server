@@ -36,7 +36,7 @@ export const setupEventListeners = (
   solanaWatchers: ReturnType<typeof setupSolanaWatchers>
 ) => {
   ws.on("message", async function (message: string) {
-    const { type, payload } = JSON.parse(message);
+    const { type, payload, clientSentTime } = JSON.parse(message);
 
     console.log({
       type,
@@ -49,11 +49,14 @@ export const setupEventListeners = (
     switch (type) {
       case PING: {
         console.log("Received PING");
+        const serverReceivedTime = Date.now();
         ws.send(
           JSON.stringify({
             type: PONG,
             payload: {
-              timestamp: Date.now(),
+              clientSentTime,
+              serverReceivedTime,
+              serverSentTime: Date.now(),
             },
           })
         );

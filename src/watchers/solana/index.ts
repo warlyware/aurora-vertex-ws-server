@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { messageTypes } from '../../types/messages';
 import { SolanaTxNotificationType } from '../../types/solana';
+import dayjs from 'dayjs';
 
 const { SOLANA_TX_NOTIFICATION } = messageTypes;
 
@@ -8,6 +9,9 @@ const MAX_CACHE_SIZE = 1000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 let reconnectAttempts = 0;
 let heliusWs: WebSocket | null = null;
+let heliusBackupWs: WebSocket | null = null;
+const processedSignatures = new Set<string>();
+const TX_EXPIRATION_TIME = 30 * 1000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 
@@ -28,18 +32,41 @@ const closeWebSocket = () => {
   }
 };
 
-export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
-  if (heliusWs) return;
+const logEvent = (event: string) => {
+  console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
+}
 
-  heliusWs = new WebSocket(
-    `wss://atlas-mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`
+const reconnect = (clients: Set<WebSocket>) => {
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.error('Max reconnect attempts reached. Stopping.');
+    return;
+  }
+
+  console.log(`Attempting to reconnect...`);
+
+  const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
+  reconnectAttempts++;
+
+  setTimeout(() => {
+    console.log(`Reconnecting in ${delay / 1000}s...`);
+    closeWebSocket();
+    setupSolanaWatchers(clients);
+  }, delay);
+};
+
+export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) => {
+  if (heliusWs && !isBackup) return;
+  if (isBackup && heliusBackupWs) return;
+
+  const wsInstance = new WebSocket(
+    `wss://atlas-mainnet.helius-rpc.com/?api-key=${isBackup ? process.env.HELIUS_API_KEY_2 : process.env.HELIUS_API_KEY}`
   );
 
-  heliusWs.on('open', () => {
-    console.log('Helius WebSocket is open');
+  wsInstance.on('open', () => {
+    logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket is open`);
     reconnectAttempts = 0;
 
-    heliusWs!.send(JSON.stringify({
+    wsInstance!.send(JSON.stringify({
       "jsonrpc": "2.0",
       "id": `aurora-${Date.now()}`,
       "method": "transactionSubscribe",
@@ -65,18 +92,28 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     }));
 
     setInterval(() => {
-      if (heliusWs?.readyState === WebSocket.OPEN) {
-        heliusWs.ping();
-        console.log('Ping sent');
+      if (wsInstance?.readyState === WebSocket.OPEN) {
+        wsInstance.ping();
       }
-    }, 30000);
+    }, 15000);
   });
 
-  heliusWs.on('message', (data) => {
+  wsInstance.on('message', (data) => {
     try {
       const messageObj: SolanaTxNotificationType['payload'] = JSON.parse(data.toString('utf8'));
 
-      if (!messageObj.params?.result?.signature) return;
+      if (
+        !messageObj.params?.result?.signature ||
+        processedSignatures.has(messageObj.params?.result?.signature)
+      ) {
+        return;
+      }
+
+      processedSignatures.add(messageObj.params.result.signature);
+
+      setTimeout(() => {
+        processedSignatures.delete(messageObj.params.result.signature);
+      }, TX_EXPIRATION_TIME);
 
       const payloadWithTimestamp: SolanaTxNotificationType = {
         type: SOLANA_TX_NOTIFICATION,
@@ -86,7 +123,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         }
       };
 
-      console.log(`Caching transaction at ${payloadWithTimestamp.payload.timestamp}: ${messageObj.params.result.signature}`);
+      logEvent(`Caching transaction at ${payloadWithTimestamp.payload.timestamp}: ${messageObj.params.result.signature}`);
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
 
@@ -100,56 +137,60 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     }
   });
 
-  heliusWs.on('error', (err) => {
-    console.error('Helius WebSocket error:', err.message);
+  wsInstance.on('error', (err) => {
+    logEvent(`${isBackup ? "Backup" : "Primary"} WS Error: ${err}`);
 
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnect attempts reached. Stopping.');
-      return;
-    }
-
-    const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
-    reconnectAttempts++;
-
-    setTimeout(() => {
-      console.log(`Reconnecting in ${delay / 1000}s...`);
-      closeWebSocket();
-      setupSolanaWatchers(clients);
-    }, delay);
+    reconnect(clients);
   });
 
-  heliusWs.on('close', (code, reason) => {
-    console.warn(`Helius WebSocket closed: Code ${code}, Reason: ${reason}`);
+  wsInstance.on('close', (code, reason) => {
+    // console.warn(`Helius WebSocket closed: Code ${code}, Reason: ${reason}`);
+    logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket closed. Attempting to reconnect...`);
+    logEvent(`Code ${code}, Reason: ${reason}`);
 
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnect attempts reached. Stopping.');
-      return;
-    }
-
-    setTimeout(() => {
-      closeWebSocket();
-      setupSolanaWatchers(clients);
-    }, 500);
+    reconnect(clients);
   });
+
+  if (isBackup) {
+    heliusBackupWs = wsInstance;
+  } else {
+    heliusWs = wsInstance;
+  }
 
   return {
+    checkConnectionHealth: () => {
+      const MAX_SILENCE_DURATION = 120000;
+
+      const firstValue = recentTxCache.size ? recentTxCache.values().next().value : null;
+      const lastMessageTime = firstValue ? firstValue.payload.timestamp : 0;
+      if (heliusWs && lastMessageTime && Date.now() - lastMessageTime > MAX_SILENCE_DURATION) {
+        logEvent('No messages received in 2 minutes. Restarting WebSocket...');
+        closeWebSocket();
+        setupSolanaWatchers(clients);
+      }
+
+      return true;
+    },
     restoreTransactionsForClient(ws: WebSocket) {
-      console.log(`Restoring ${recentTxCache.size} transactions for new client`);
+      logEvent(`Restoring ${recentTxCache.size} transactions for new client`);
       for (const cachedTx of recentTxCache.values()) {
         ws.send(JSON.stringify(cachedTx));
       }
+    },
+    setupBackupConnection: () => {
+      logEvent('Setting up backup connection');
+
+      setupSolanaWatchers(clients);
     },
 
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {
       const { type, payload } = message;
 
-      console.log({ type, payload });
-
       switch (type) {
         case SOLANA_TX_NOTIFICATION:
           break;
         default:
-          console.warn("Unhandled message type:", type);
+          logEvent(`Unknown message type: ${type}`);
           break;
       }
     }

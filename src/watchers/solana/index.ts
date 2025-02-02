@@ -16,11 +16,13 @@ const processedSignatures = new Set<string>();
 const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
+// Global timestamp for primary messages:
 let lastReceivedMessageTimestamp = Date.now();
+// NEW: Global timestamp for backup messages:
+let lastReceivedBackupMessageTimestamp = Date.now();
 let lastRestartTimestamp: number | null = null;
 let isPrimaryReconnecting = false;
 let isBackupReconnecting = false;
-
 
 let redis: Redis | null = null;
 
@@ -83,6 +85,9 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
     `wss://atlas-mainnet.helius-rpc.com/?api-key=${isBackup ? process.env.HELIUS_API_KEY_2 : process.env.HELIUS_API_KEY}`
   );
 
+  // Add a temporary property to control logging during reconnect cycles.
+  (wsInstance as any).hasLoggedReconnect = false;
+
   const closeWebSocket = (isBackup: boolean) => {
     if (isBackup) {
       if (!heliusBackupWs) return;
@@ -127,9 +132,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
     setTimeout(() => {
       closeWebSocket(isBackup);
-
       setupSolanaWatchers(clients, isBackup);
-
       setTimeout(() => {
         if (isBackup) {
           isBackupReconnecting = false;
@@ -145,17 +148,17 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
     if (isBackup) {
       isBackupReconnecting = false;
+      lastReceivedBackupMessageTimestamp = Date.now();
     } else {
       isPrimaryReconnecting = false;
+      lastReceivedMessageTimestamp = Date.now();
     }
-
-    lastReceivedMessageTimestamp = Date.now();
 
     if (!isBackup) { restoreTransactions(); }
 
     reconnectAttempts = 0;
 
-    wsInstance!.send(JSON.stringify({
+    wsInstance.send(JSON.stringify({
       "jsonrpc": "2.0",
       "id": `aurora-${Date.now()}`,
       "method": "transactionSubscribe",
@@ -192,24 +195,28 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       const MAX_SILENCE_DURATION = 120000;
       const backupSilenceThreshold = MAX_SILENCE_DURATION + 11000;
       const threshold = isBackup ? backupSilenceThreshold : MAX_SILENCE_DURATION;
+      // Use separate timestamp for backup vs. primary:
+      const lastTime = isBackup ? lastReceivedBackupMessageTimestamp : lastReceivedMessageTimestamp;
 
       if ((isBackup && isBackupReconnecting) || (!isBackup && isPrimaryReconnecting)) {
-        logEvent(`Skipping connection health check: ${isBackup ? "Backup" : "Primary"} is already reconnecting.`, isBackup);
+        if (!(wsInstance as any).hasLoggedReconnect) {
+          logEvent(`Skipping connection health check: ${isBackup ? "Backup" : "Primary"} is already reconnecting.`, isBackup);
+          (wsInstance as any).hasLoggedReconnect = true;
+        }
         return;
+      } else {
+        (wsInstance as any).hasLoggedReconnect = false;
       }
 
-      if (Date.now() - lastReceivedMessageTimestamp > threshold) {
+      if (Date.now() - lastTime > threshold) {
         if (isBackup) {
           isBackupReconnecting = true;
         } else {
           isPrimaryReconnecting = true;
         }
-
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
-
         closeWebSocket(isBackup);
         await new Promise((resolve) => setTimeout(resolve, 500));
-
         lastRestartTimestamp = Date.now();
         setupSolanaWatchers(clients, isBackup);
       }
@@ -221,7 +228,6 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   });
 
   wsInstance.on('message', (data) => {
-
     try {
       const messageObj: SolanaTxNotificationType['payload'] = JSON.parse(data.toString('utf8'));
 
@@ -250,7 +256,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
-      lastReceivedMessageTimestamp = Date.now();
+
+      // Update the appropriate timestamp for health check:
+      if (isBackup) {
+        lastReceivedBackupMessageTimestamp = Date.now();
+      } else {
+        lastReceivedMessageTimestamp = Date.now();
+      }
 
       for (const client of clients) {
         if (client.readyState === WebSocket.OPEN) {
@@ -264,15 +276,12 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
   wsInstance.on('error', (err) => {
     logEvent(`${isBackup ? "Backup" : "Primary"} WS Error: ${err}`, isBackup);
-
     reconnect(clients, isBackup);
   });
 
   wsInstance.on('close', (code, reason) => {
-    // console.warn(`Helius WebSocket closed: Code ${code}, Reason: ${reason}`);
     logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket closed. Attempting to reconnect...`, isBackup);
     logEvent(`Code ${code}, Reason: ${reason}`, isBackup);
-
     reconnect(clients, isBackup);
   });
 

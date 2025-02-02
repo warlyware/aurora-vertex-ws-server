@@ -83,7 +83,7 @@ const restoreTransactions = async () => {
   if (!process.env.IS_PRODUCTION || !redis) return;
 
   const keys = await redis.keys('tx:*');
-  const transactions = await redis.mget(keys);
+  const transactions = keys.length > 0 ? await redis.mget(...keys) : [];
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];

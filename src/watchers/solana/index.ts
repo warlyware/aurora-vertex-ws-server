@@ -17,7 +17,7 @@ const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 let lastReceivedMessageTimestamp = Date.now();
-// NEW: separate backup timestamp
+// NEW: Separate timestamp for backup messages
 let lastReceivedBackupMessageTimestamp = Date.now();
 let lastRestartTimestamp: number | null = null;
 let isPrimaryReconnecting = false;
@@ -27,7 +27,6 @@ let redis: Redis | null = null;
 
 (() => {
   console.log('process.env.IS_PRODUCTION:', !!process.env.IS_PRODUCTION);
-
   if (process.env.IS_PRODUCTION) {
     redis = new Redis();
     console.log('✅ Redis connected in production mode');
@@ -51,7 +50,7 @@ const logEvent = (event: string, isBackup: boolean) => {
     return;
   }
   console.log(`PRIMARY: ${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
-}
+};
 
 const storeTransaction = async (signature: string, transaction: any) => {
   if (!process.env.IS_PRODUCTION || !redis) return;
@@ -70,7 +69,7 @@ const restoreTransactions = async () => {
       recentTxCache.set(key.split(':')[1], parsedTx);
     }
   }
-}
+};
 
 export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) => {
   if (heliusWs && !isBackup) return;
@@ -166,49 +165,19 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
     }));
     logEvent(`Subscribed to transaction notifications`, isBackup);
 
-    // --- FIX: Save the interval IDs so we can clear them on close ---
+    // Save the interval IDs so they can be cleared on close.
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
         wsInstance.ping();
       }
     }, 30000);
 
-    const healthCheckInterval = setInterval(() => {
-      checkConnectionHealth(clients, isBackup);
+    const healthCheckInterval = setInterval(async () => {
+      await checkConnectionHealth(clients, isBackup);
     }, 5000);
-    // --- End fix ---
 
-    const checkConnectionHealth = async (clients: Set<WebSocket>, isBackup: boolean) => {
-      const MAX_SILENCE_DURATION = 120000;
-      const backupSilenceThreshold = MAX_SILENCE_DURATION + 11000;
-      const threshold = isBackup ? backupSilenceThreshold : MAX_SILENCE_DURATION;
-      // Use the appropriate timestamp:
-      const lastTime = isBackup ? lastReceivedBackupMessageTimestamp : lastReceivedMessageTimestamp;
-      if ((isBackup && isBackupReconnecting) || (!isBackup && isPrimaryReconnecting)) {
-        if (!(wsInstance as any).hasLoggedReconnect) {
-          logEvent(`Skipping connection health check: ${isBackup ? "Backup" : "Primary"} is already reconnecting.`, isBackup);
-          (wsInstance as any).hasLoggedReconnect = true;
-        }
-        return;
-      } else {
-        (wsInstance as any).hasLoggedReconnect = false;
-      }
-      if (Date.now() - lastTime > threshold) {
-        if (isBackup) {
-          isBackupReconnecting = true;
-        } else {
-          isPrimaryReconnecting = true;
-        }
-        logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
-        closeWebSocket(isBackup);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        lastRestartTimestamp = Date.now();
-        setupSolanaWatchers(clients, isBackup);
-      }
-    };
-
-    // --- Clear the intervals on close to avoid duplicate timers ---
-    wsInstance.on('close', (code, reason) => {
+    // *** Attach the on('close') handler only once (inside on('open'))
+    wsInstance.on('close', async (code, reason) => {
       clearInterval(pingInterval);
       clearInterval(healthCheckInterval);
       logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket closed. Attempting to reconnect...`, isBackup);
@@ -216,6 +185,35 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       reconnect(clients, isBackup);
     });
   });
+
+  const checkConnectionHealth = async (clients: Set<WebSocket>, isBackup: boolean) => {
+    const MAX_SILENCE_DURATION = 120000;
+    const backupSilenceThreshold = MAX_SILENCE_DURATION + 11000;
+    const threshold = isBackup ? backupSilenceThreshold : MAX_SILENCE_DURATION;
+    // Use separate timestamp for backup vs. primary:
+    const lastTime = isBackup ? lastReceivedBackupMessageTimestamp : lastReceivedMessageTimestamp;
+    if ((isBackup && isBackupReconnecting) || (!isBackup && isPrimaryReconnecting)) {
+      if (!(wsInstance as any).hasLoggedReconnect) {
+        logEvent(`Skipping connection health check: ${isBackup ? "Backup" : "Primary"} is already reconnecting.`, isBackup);
+        (wsInstance as any).hasLoggedReconnect = true;
+      }
+      return;
+    } else {
+      (wsInstance as any).hasLoggedReconnect = false;
+    }
+    if (Date.now() - lastTime > threshold) {
+      if (isBackup) {
+        isBackupReconnecting = true;
+      } else {
+        isPrimaryReconnecting = true;
+      }
+      logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
+      closeWebSocket(isBackup);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      lastRestartTimestamp = Date.now();
+      setupSolanaWatchers(clients, isBackup);
+    }
+  };
 
   wsInstance.on('message', (data) => {
     try {
@@ -261,7 +259,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
     reconnect(clients, isBackup);
   });
 
-  // The 'close' event is also handled inside wsInstance.on('open') above (to clear intervals)
+  // Remove the duplicate wsInstance.on('close') handler that was here before.
 
   if (isBackup) {
     heliusBackupWs = wsInstance;
@@ -271,14 +269,12 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
   return {
     backupExists: () => !!heliusBackupWs,
-
     restoreTransactionsForClient(ws: WebSocket) {
       logEvent(`Restoring ${recentTxCache.size} transactions for new client`, isBackup);
       for (const cachedTx of recentTxCache.values()) {
         ws.send(JSON.stringify(cachedTx));
       }
     },
-
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {
       const { type, payload } = message;
       switch (type) {

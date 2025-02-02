@@ -200,11 +200,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       if (Date.now() - lastReceivedMessageTimestamp > MAX_SILENCE_DURATION) {
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
 
-        if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-        }
+        // if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
+        //   await new Promise((resolve) => setTimeout(resolve, 5000));
+        // }
 
-        reconnect(clients, isBackup);
+        closeWebSocket(isBackup);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setupSolanaWatchers(clients, isBackup);
       }
     };
 
@@ -214,6 +216,8 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   });
 
   wsInstance.on('message', (data) => {
+    logEvent('Received message:', isBackup);
+
     try {
       const messageObj: SolanaTxNotificationType['payload'] = JSON.parse(data.toString('utf8'));
 

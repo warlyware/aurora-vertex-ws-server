@@ -204,9 +204,9 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
           isPrimaryReconnecting = true;
         }
 
-        // if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
-        //   await new Promise((resolve) => setTimeout(resolve, 5000));
-        // }
+        if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
 
         closeWebSocket(isBackup);
         await new Promise((resolve) => setTimeout(resolve, 500));

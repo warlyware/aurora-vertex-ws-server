@@ -189,21 +189,20 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
     }, 30000);
 
     const checkConnectionHealth = async (clients: Set<WebSocket>, isBackup: boolean) => {
-      const MAX_SILENCE_DURATION = 120000; // 2 minutes
+      const MAX_SILENCE_DURATION = 120000;
+      const backupSilenceThreshold = MAX_SILENCE_DURATION + 2000;
+      const threshold = isBackup ? backupSilenceThreshold : MAX_SILENCE_DURATION;
+
       if ((isBackup && isBackupReconnecting) || (!isBackup && isPrimaryReconnecting)) {
         logEvent(`Skipping connection health check: ${isBackup ? "Backup" : "Primary"} is already reconnecting.`, isBackup);
         return;
       }
 
-      if (Date.now() - lastReceivedMessageTimestamp > MAX_SILENCE_DURATION) {
+      if (Date.now() - lastReceivedMessageTimestamp > threshold) {
         if (isBackup) {
           isBackupReconnecting = true;
         } else {
           isPrimaryReconnecting = true;
-        }
-
-        if (isBackup) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
         }
 
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);

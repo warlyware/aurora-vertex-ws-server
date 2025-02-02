@@ -2,6 +2,7 @@ import WebSocket from 'ws';
 import { messageTypes } from '../../types/messages';
 import { SolanaTxNotificationType } from '../../types/solana';
 import dayjs from 'dayjs';
+import Redis from 'ioredis';
 
 const { SOLANA_TX_NOTIFICATION } = messageTypes;
 
@@ -11,9 +12,11 @@ let reconnectAttempts = 0;
 let heliusWs: WebSocket | null = null;
 let heliusBackupWs: WebSocket | null = null;
 const processedSignatures = new Set<string>();
-const TX_EXPIRATION_TIME = 30 * 1000; // 1 minute
+const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
+
+const redis = new Redis();
 
 const pruneOldTransactions = () => {
   while (recentTxCache.size > MAX_CACHE_SIZE) {
@@ -58,6 +61,29 @@ const reconnect = (clients: Set<WebSocket>) => {
   }, delay);
 };
 
+const storeTransaction = async (signature: string, transaction: any) => {
+  if (!process.env.IS_PRODUCTION) return;
+
+  await redis.set(`tx:${signature}`, JSON.stringify(transaction));
+};
+
+const restoreTransactions = async () => {
+  if (!process.env.IS_PRODUCTION) return;
+
+  const keys = await redis.keys('tx:*');
+  const transactions = await redis.mget(keys);
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const transaction = transactions[i];
+
+    if (transaction) {
+      const parsedTx = JSON.parse(transaction);
+      recentTxCache.set(key.split(':')[1], parsedTx);
+    }
+  }
+}
+
 export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) => {
   if (heliusWs && !isBackup) return;
   if (isBackup && heliusBackupWs) return;
@@ -68,6 +94,9 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
   wsInstance.on('open', () => {
     logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket is open`, isBackup);
+
+    if (!isBackup) restoreTransactions();
+
     reconnectAttempts = 0;
 
     wsInstance!.send(JSON.stringify({
@@ -131,6 +160,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
       logEvent(`Caching transaction ${messageObj.params.result.signature}`, isBackup);
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
+      storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
 
       for (const client of clients) {

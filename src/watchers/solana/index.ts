@@ -120,8 +120,6 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       isPrimaryReconnecting = true;
     }
 
-    lastRestartTimestamp = Date.now();
-
     const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
     reconnectAttempts++;
 
@@ -212,15 +210,19 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
         closeWebSocket(isBackup);
         await new Promise((resolve) => setTimeout(resolve, 500));
+
+        lastRestartTimestamp = Date.now();
         setupSolanaWatchers(clients, isBackup);
       }
     };
 
-    setTimeout(() => checkConnectionHealth(clients, isBackup), 60000 - ((Date.now() - lastReceivedMessageTimestamp) % 60000));
-
+    setInterval(() => {
+      checkConnectionHealth(clients, isBackup);
+    }, 30000);
   });
 
   wsInstance.on('message', (data) => {
+
     try {
       const messageObj: SolanaTxNotificationType['payload'] = JSON.parse(data.toString('utf8'));
 

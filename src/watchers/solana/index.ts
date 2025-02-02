@@ -129,7 +129,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
         }
       };
 
-      logEvent(`Caching transaction at ${payloadWithTimestamp.payload.timestamp}: ${messageObj.params.result.signature}`, isBackup);
+      logEvent(`Caching transaction ${messageObj.params.result.signature}`, isBackup);
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
 

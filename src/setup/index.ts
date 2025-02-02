@@ -38,17 +38,17 @@ export const setupEventListeners = (
   ws.on("message", async function (message: string) {
     const { type, payload, clientSentTime } = JSON.parse(message);
 
-    console.log({
-      type,
-      payload,
-    });
-
-
     const { BOTS, SOLANA } = messageGroups;
+
+    if (type !== PING) {
+      console.log({
+        type,
+        payload,
+      });
+    }
 
     switch (type) {
       case PING: {
-        console.log("Received PING");
         const serverReceivedTime = Date.now();
         ws.send(
           JSON.stringify({

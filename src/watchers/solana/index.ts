@@ -39,14 +39,6 @@ const pruneOldTransactions = () => {
   }
 };
 
-const closeWebSocket = () => {
-  if (heliusWs) {
-    heliusWs.removeAllListeners();
-    heliusWs.close();
-    heliusWs = null;
-  }
-};
-
 const logEvent = (event: string, isBackup: boolean) => {
   if (isBackup) {
     console.log(`BACKUP: ${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
@@ -54,24 +46,6 @@ const logEvent = (event: string, isBackup: boolean) => {
   }
   console.log(`PRIMARY: ${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
 }
-
-const reconnect = (clients: Set<WebSocket>) => {
-  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error('Max reconnect attempts reached. Stopping.');
-    return;
-  }
-
-  console.log(`Attempting to reconnect...`);
-
-  const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
-  reconnectAttempts++;
-
-  setTimeout(() => {
-    console.log(`Reconnecting in ${delay / 1000}s...`);
-    closeWebSocket();
-    setupSolanaWatchers(clients);
-  }, delay);
-};
 
 const storeTransaction = async (signature: string, transaction: any) => {
   if (!process.env.IS_PRODUCTION || !redis) return;
@@ -103,6 +77,37 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
   const wsInstance = new WebSocket(
     `wss://atlas-mainnet.helius-rpc.com/?api-key=${isBackup ? process.env.HELIUS_API_KEY_2 : process.env.HELIUS_API_KEY}`
   );
+
+  const closeWebSocket = () => {
+    if (heliusWs && !isBackup) {
+      heliusWs.removeAllListeners();
+      heliusWs.close();
+      heliusWs = null;
+    }
+    if (heliusBackupWs && isBackup) {
+      heliusBackupWs.removeAllListeners();
+      heliusBackupWs.close();
+      heliusBackupWs = null;
+    }
+  };
+
+  const reconnect = (clients: Set<WebSocket>) => {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('Max reconnect attempts reached. Stopping.');
+      return;
+    }
+
+    console.log(`Attempting to reconnect...`);
+
+    const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
+    reconnectAttempts++;
+
+    setTimeout(() => {
+      console.log(`Reconnecting in ${delay / 1000}s...`);
+      closeWebSocket();
+      setupSolanaWatchers(clients, isBackup);
+    }, delay);
+  };
 
   wsInstance.on('open', () => {
     logEvent(`Helius ${isBackup ? "Backup" : "Primary"} WebSocket is open`, isBackup);

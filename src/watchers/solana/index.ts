@@ -17,6 +17,7 @@ const TX_EXPIRATION_TIME = 60000; // 1 minute
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 let lastReceivedMessageTimestamp = Date.now();
+let lastRestartTimestamp: number | null = null;
 let isPrimaryReconnecting = false;
 let isBackupReconnecting = false;
 
@@ -119,6 +120,8 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       isPrimaryReconnecting = true;
     }
 
+    lastRestartTimestamp = Date.now();
+
     const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
     reconnectAttempts++;
 
@@ -129,14 +132,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
       setupSolanaWatchers(clients, isBackup);
 
-      // Reset the flag once the WebSocket is successfully opened
       setTimeout(() => {
         if (isBackup) {
           isBackupReconnecting = false;
         } else {
           isPrimaryReconnecting = false;
         }
-      }, 5000); // Buffer to ensure reconnection has fully completed before resetting
+      }, 1000); // Buffer to ensure reconnection has fully completed before resetting
     }, delay);
   };
 
@@ -151,7 +153,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
 
     lastReceivedMessageTimestamp = Date.now();
 
-    if (!isBackup) restoreTransactions();
+    if (!isBackup) { restoreTransactions(); }
 
     reconnectAttempts = 0;
 
@@ -198,11 +200,11 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>, isBackup = false) =
       if (Date.now() - lastReceivedMessageTimestamp > MAX_SILENCE_DURATION) {
         logEvent('No messages received in 2 minutes. Restarting WebSocket...', isBackup);
 
-        // Stagger the restart times slightly to avoid simultaneous reconnections
-        await new Promise((resolve) => setTimeout(resolve, isBackup ? 15000 : 5000));
+        if (lastRestartTimestamp && Date.now() - lastRestartTimestamp < 5000) {
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
 
-        closeWebSocket(isBackup);
-        setupSolanaWatchers(clients, isBackup);
+        reconnect(clients, isBackup);
       }
     };
 

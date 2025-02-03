@@ -213,12 +213,22 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     try {
       const parsed = JSON.parse(data.toString('utf8'));
 
+      if (!parsed?.params?.error) {
+        logEvent(`ERROR: ${JSON.stringify(parsed.params.error)}`);
+        return;
+      }
+
       if (
         parsed?.params?.result &&
         parsed?.params?.result?.value?.data?.program === 'sysvar' &&
         parsed?.params?.result?.value?.data?.parsed?.type === 'clock'
       ) {
         lastHeartbeatTimestamp = Date.now();
+
+        if (!firstHeartbeatReceived) {
+          firstHeartbeatReceived = true;
+          logEvent("Initial heartbeat received");
+        }
         return;
       }
 

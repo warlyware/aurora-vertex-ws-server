@@ -13,6 +13,7 @@ let reconnectAttempts = 0;
 let heliusWs: WebSocket | null = null;
 const processedSignatures = new Set<string>();
 const TX_EXPIRATION_TIME = 60000; // 1 minute
+let firstHeartbeatReceived = false;
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
 // Use one timestamp for transaction messages...
@@ -114,6 +115,11 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     const threshold = MAX_SILENCE_DURATION;
 
     const lastEffectiveTimestamp = Math.max(lastReceivedTxTimestamp, lastHeartbeatTimestamp);
+
+    if (!firstHeartbeatReceived) {
+      logEvent("Waiting for initial heartbeat...");
+      return;
+    }
 
     if (isReconnecting) {
       if (!(wsInstance as any).hasLoggedReconnect) {

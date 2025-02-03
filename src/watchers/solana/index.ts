@@ -213,7 +213,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     try {
       const parsed = JSON.parse(data.toString('utf8'));
 
-      if (!parsed?.params?.error) {
+      if (parsed?.params?.error) {
         logEvent(`ERROR: ${JSON.stringify(parsed.params.error)}`);
         return;
       }

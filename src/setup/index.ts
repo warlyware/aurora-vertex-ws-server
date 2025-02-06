@@ -8,6 +8,9 @@ import { getClient } from "../utils/tg";
 import { getCoinInfo } from "../utils/coins";
 import { setupBotManager } from "../bots";
 import { setupSolanaWatchers } from "../watchers/solana";
+import { setupWalletBalancesRoute } from "../endpoints/wallets/get-wallet-balances";
+import cors from "cors";
+import { setupTransferSolRoute } from "../endpoints/tokens/transfer-sol";
 
 const {
   GET_COIN_INFO,
@@ -21,7 +24,23 @@ export const setupApp = () => {
   const app = express();
   app.use(express.static(path.join(__dirname, "../../public")));
   const server = createServer(app);
+  const router = express.Router();
   const wss = new WebSocket.Server({ server });
+
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  app.use(cors({
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }));
+
+  setupWalletBalancesRoute(router);
+  setupTransferSolRoute(router);
+
+  app.use(router);
 
   server.listen(3002, function () {
     console.log("Listening on http://0.0.0.0:3002");

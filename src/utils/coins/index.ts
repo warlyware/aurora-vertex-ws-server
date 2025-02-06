@@ -1,8 +1,5 @@
 
-import { HELIUS_API_KEY } from "../../constants";
-import { Helius } from "helius-sdk";
-
-const helius = new Helius(HELIUS_API_KEY);
+import { helius } from "../wallets";
 
 async function fetchAssetByMint(mintAddress: string) {
   try {

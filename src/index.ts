@@ -1,6 +1,7 @@
 "use strict";
 
 import "dotenv/config";
+import { parse } from 'url';
 import WebSocket from "ws";
 import { setupApp, setupEventListeners } from "./setup";
 import { setupMemoryWatcher } from "./watchers/memory";
@@ -22,10 +23,21 @@ export const sendToConnectedClients = (message: BotMessage) => {
 };
 
 const botManager = setupBotManager();
-const solanaWatchers = setupSolanaWatchers(clients);
+let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;
 
-wss.on("connection", async function (ws: WebSocket) {
-  console.log("Client connected");
+if (process.env.IS_PRODUCTION) {
+  solanaWatchers = setupSolanaWatchers(clients);
+}
+
+wss.on("connection", async function (ws: WebSocket, req) {
+  const parsedUrl = parse(req.url || '', true);
+  const authKey = parsedUrl?.query?.auth;
+
+  if (!authKey || authKey !== process.env.AURORA_VERTEX_API_KEY) {
+    console.error("Client not authorized");
+    ws.close();
+    return;
+  }
 
   clients.add(ws);
 

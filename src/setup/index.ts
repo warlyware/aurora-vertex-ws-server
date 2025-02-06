@@ -11,7 +11,7 @@ import { setupSolanaWatchers } from "../watchers/solana";
 import { setupWalletBalancesRoute } from "../endpoints/wallets/get-wallet-balances";
 import cors from "cors";
 import { setupTransferSolRoute } from "../endpoints/tokens/transfer-sol";
-
+import { setupBuyOnPumpfunRoute } from "../endpoints/tokens/buy-on-pumpfun";
 const {
   GET_COIN_INFO,
   PING,
@@ -39,6 +39,7 @@ export const setupApp = () => {
 
   setupWalletBalancesRoute(router);
   setupTransferSolRoute(router);
+  setupBuyOnPumpfunRoute(router);
 
   app.use(router);
 

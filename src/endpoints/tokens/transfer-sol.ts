@@ -1,42 +1,7 @@
 import { Keypair, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
-import { helius } from "../../utils/wallets";
+import { getKeypairFromSecretKey, getKeysFromDb, helius } from "../../utils/wallets";
 import { Router, Request, Response } from "express";
 import { AURORA_VERTEX_API_KEY } from "../../constants";
-import { GET_KEYPAIR_BY_BOT_ID } from "../../graphql/queries/get-keypair-by-bot-id";
-import { getGqlClient } from "../../graphql/client";
-import { getStringFromByteArrayString } from "../../utils/solana";
-
-export const getKeypairFromDb = async (botId: string) => {
-  const client = await getGqlClient();
-
-  const { bots }: {
-    bots: {
-      id: string;
-      botWallet: {
-        wallet: {
-          keypair: {
-            privateKey: string;
-            publicKey: string;
-          }
-        }
-      }
-    }[]
-  } =
-    await client.request({
-      document: GET_KEYPAIR_BY_BOT_ID,
-      variables: {
-        botId,
-      },
-    });
-
-  const keypair = bots[0]?.botWallet?.wallet?.keypair;
-
-  if (!keypair) {
-    throw new Error("Keypair not found");
-  }
-
-  return keypair;
-}
 
 export function setupTransferSolRoute(router: Router) {
   router.post('/transfer-sol', async (req: Request, res: Response) => {
@@ -58,14 +23,10 @@ export function setupTransferSolRoute(router: Router) {
 
     try {
       const {
-        privateKey,
         publicKey,
-      } = await getKeypairFromDb(botId);
-      console.log({ privateKey });
+        keypair: fromKeypair,
+      } = await getKeysFromDb(botId);
 
-      const byteValues = privateKey.split(",").map(Number);
-      const secretKey = Uint8Array.from(byteValues);
-      const fromKeypair = Keypair.fromSecretKey(secretKey);
       const fromPubkey = new PublicKey(publicKey);
       const toPubkey = new PublicKey(toAddress);
 
@@ -77,12 +38,10 @@ export function setupTransferSolRoute(router: Router) {
         }),
       ];
 
-      console.log('instructions formed');
-
-      const transactionSignature = await helius.rpc.sendSmartTransaction(instructions, [
-        fromKeypair,
-      ]);
-      console.log(`Successful transfer: ${transactionSignature}`);
+      const transactionSignature = await helius.rpc
+        .sendSmartTransaction(instructions, [
+          fromKeypair,
+        ]);
 
       res.status(200).json({
         success: true,

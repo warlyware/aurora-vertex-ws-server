@@ -10,9 +10,3 @@ export const getGqlClient = async () => {
     }
   );
 };
-
-export const getGql = async () => {
-  const { gql } = await import("graphql-request");
-
-  return gql;
-};

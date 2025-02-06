@@ -31,8 +31,6 @@ export const getKeypairFromDb = async (botId: string) => {
 
   const keypair = bots[0]?.botWallet?.wallet?.keypair;
 
-  console.log({ keypair });
-
   if (!keypair) {
     throw new Error("Keypair not found");
   }

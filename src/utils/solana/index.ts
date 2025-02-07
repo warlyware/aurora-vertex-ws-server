@@ -46,7 +46,7 @@ export const getPumpFunSdk = async (botId: string) => {
   const provider = new AnchorProvider(
     new Connection(`https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY_2}`),
     wallet,
-    { commitment: "finalized" }
+    { commitment: "confirmed" }
   );
 
   pumpFunSdk = new PumpFunSDK(provider);
@@ -83,12 +83,23 @@ export const getSPLBalance = async (
 ) => {
   const { getAssociatedTokenAddressSync } = await import("@solana/spl-token");
 
+  let returnValue = {
+    amount: null,
+    baseAmount: null
+  } as {
+    amount: number | null,
+    baseAmount: string | null
+  };
+
   try {
     let ata = getAssociatedTokenAddressSync(mintAddress, pubKey, allowOffCurve);
     const balance = await connection.getTokenAccountBalance(ata, "processed");
-    return balance.value.uiAmount;
+    returnValue = {
+      amount: balance.value.uiAmount,
+      baseAmount: balance.value.amount
+    }
   } catch (e) { }
-  return null;
+  return returnValue;
 };
 
 export const printSPLBalance = async (
@@ -98,13 +109,13 @@ export const printSPLBalance = async (
   info: string = ""
 ) => {
   const balance = await getSPLBalance(connection, mintAddress, user);
-  if (balance === null) {
+  if (balance?.amount === null) {
     console.log(
       `${info ? info + " " : ""}${user.toBase58()}:`,
       "No Account Found"
     );
   } else {
-    console.log(`${info ? info + " " : ""}${user.toBase58()}:`, balance);
+    console.log(`${info ? info + " " : ""}${user.toBase58()}:`, balance?.amount);
   }
 };
 

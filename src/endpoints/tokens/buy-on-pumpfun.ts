@@ -3,7 +3,8 @@ import { getKeysFromDb, helius } from "../../utils/wallets";
 import { Router, Request, Response } from "express";
 import { AURORA_VERTEX_API_KEY } from "../../constants";
 import { PumpFunSDK } from "pumpdotfun-sdk";
-import { getPumpFunSdk, printSPLBalance } from "../../utils/solana";
+import { getPumpFunSdk, getSPLBalance, printSPLBalance } from "../../utils/solana";
+import { sendSplTokens } from "../../utils/tokens";
 
 const SLIPPAGE_BASIS_POINTS = 500n;
 
@@ -37,7 +38,13 @@ const buyTokens = async (
 
 export function setupBuyOnPumpfunRoute(router: Router) {
   router.post('/buy-on-pumpfun', async (req: Request, res: Response) => {
-    const { botId, mintAddress, amountInLamports, apiKey, priorityFeeInLamports } = req.body;
+    const { botId,
+      mintAddress,
+      amountInLamports,
+      apiKey,
+      priorityFeeInLamports,
+      destinationAddress,
+    } = req.body;
 
     if (apiKey !== AURORA_VERTEX_API_KEY) {
       return res.status(401).json({
@@ -68,16 +75,33 @@ export function setupBuyOnPumpfunRoute(router: Router) {
 
       if (result.success) {
         printSPLBalance(sdk.connection, mintAddress, fromPubkey);
+        const { amount, baseAmount } = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
+        console.log("Balance after buy", amount);
         console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(
           new PublicKey(mintAddress)
         ));
+
+        let sendSignature = null;
+        if (destinationAddress && baseAmount) {
+          const toPubkey = new PublicKey(destinationAddress);
+          const mint = new PublicKey(mintAddress);
+
+          sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, baseAmount);
+        }
+
+        res.status(200).json({
+          success: true,
+          buySignature: result.signature,
+          sendSignature
+        });
       } else {
         console.log("Buy failed", result);
-      }
 
-      res.status(200).json({
-        success: true,
-      });
+        res.status(500).json({
+          success: false,
+          error: result,
+        });
+      }
     } catch (error) {
       console.error('Error buying:', error);
 

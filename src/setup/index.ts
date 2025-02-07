@@ -12,6 +12,8 @@ import { setupWalletBalancesRoute } from "../endpoints/wallets/get-wallet-balanc
 import cors from "cors";
 import { setupTransferSolRoute } from "../endpoints/tokens/transfer-sol";
 import { setupBuyOnPumpfunRoute } from "../endpoints/tokens/buy-on-pumpfun";
+import { setupTransferSplTokensRoute } from "../endpoints/tokens/transfer-spl-tokens";
+
 const {
   GET_COIN_INFO,
   PING,
@@ -40,6 +42,7 @@ export const setupApp = () => {
   setupWalletBalancesRoute(router);
   setupTransferSolRoute(router);
   setupBuyOnPumpfunRoute(router);
+  setupTransferSplTokensRoute(router);
 
   app.use(router);
 

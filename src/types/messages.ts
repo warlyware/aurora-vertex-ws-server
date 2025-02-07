@@ -1,4 +1,5 @@
 enum MessageType {
+  AURORA_SERVER_LOG = "AURORA_SERVER_LOG",
   FOLDER_CHANGE = "FOLDER_CHANGE",
   GENERIC_MESSAGE = "GENERIC_MESSAGE",
   GET_COIN_INFO = "GET_COIN_INFO",
@@ -19,6 +20,7 @@ enum MessageType {
 }
 
 export const messageTypes = {
+  AURORA_SERVER_LOG: MessageType.AURORA_SERVER_LOG,
   MESSAGE_TYPE: MessageType,
   FOLDER_CHANGE: MessageType.FOLDER_CHANGE,
   GENERIC_MESSAGE: MessageType.GENERIC_MESSAGE,

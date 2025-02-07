@@ -2,7 +2,6 @@ import { Router } from 'express';
 import axios from 'axios';
 import { RPC_ENDPOINT, AURORA_VERTEX_API_KEY } from '../../constants';
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { Metaplex } from '@metaplex-foundation/js';
 import { getCoinInfo } from '../../utils/coins';
 
 export type TokenBalance = {
@@ -78,7 +77,6 @@ export function setupWalletBalancesRoute(router: Router) {
 
     const connection = new Connection(RPC_ENDPOINT);
 
-    // Helper function to get metadata directly from chain
     async function getTokenMetadata(mint: string) {
       try {
         const info = await getCoinInfo(mint)

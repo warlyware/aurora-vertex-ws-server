@@ -9,9 +9,11 @@ import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
 import { BotMessage } from "./bots/bot";
+import EventEmitter from "events";
 
 const { wss } = setupApp();
 
+export const eventBus = new EventEmitter();
 export const clients = new Set<WebSocket>();
 
 export const sendToConnectedClients = (message: BotMessage) => {
@@ -45,7 +47,7 @@ wss.on("connection", async function (ws: WebSocket, req) {
   setupFolderWatchers(ws);
   setupEventListeners(ws, botManager, solanaWatchers);
   if (solanaWatchers) {
-    solanaWatchers.restoreTransactionsForClient(ws);
+    solanaWatchers.sendRestoredTransactionsToClient(ws);
   }
   // await createTgClient(ws);
 

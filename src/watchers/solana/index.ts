@@ -5,6 +5,13 @@ import { SolanaTxNotificationType } from '../../types/solana';
 import dayjs from 'dayjs';
 import Redis from 'ioredis';
 
+const { AURORA_SERVER_LOG } = messageTypes;
+
+type AuroraServerLogType = {
+  type: typeof AURORA_SERVER_LOG;
+  payload: string;
+};
+
 const { SOLANA_TX_NOTIFICATION } = messageTypes;
 
 const MAX_CACHE_SIZE = 1000;
@@ -16,9 +23,8 @@ const TX_EXPIRATION_TIME = 60000; // 1 minute
 let firstHeartbeatReceived = false;
 
 const recentTxCache = new Map<string, SolanaTxNotificationType>();
-// Use one timestamp for transaction messages...
+const recentLogsCache = new Map<string, AuroraServerLogType>();
 let lastReceivedTxTimestamp = Date.now();
-// And a separate one for heartbeat (clock sysvar) messages.
 let lastHeartbeatTimestamp = Date.now();
 
 let lastRestartTimestamp: number | null = null;
@@ -45,8 +51,27 @@ const pruneOldTransactions = () => {
   }
 };
 
-const logEvent = (event: string) => {
+const storeLog = async (event: string) => {
+  if (!process.env.IS_PRODUCTION || !redis) return;
+  await redis.set(`log:${Date.now()}`, event);
+};
+
+const restoreLogs = async () => {
+  if (!process.env.IS_PRODUCTION || !redis) return;
+  const logs = await redis.keys('log:*');
+  const logsData = logs.length > 0 ? await redis.mget(...logs) : [];
+  for (let i = 0; i < logs.length; i++) {
+    recentLogsCache.set(logs[i], {
+      type: AURORA_SERVER_LOG,
+      payload: logsData?.[i] || ''
+    });
+  }
+};
+
+const logServerEvent = (event: string) => {
   console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
+
+  storeLog(event);
 };
 
 const storeTransaction = async (signature: string, transaction: any) => {
@@ -117,13 +142,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     const lastEffectiveTimestamp = Math.max(lastReceivedTxTimestamp, lastHeartbeatTimestamp);
 
     if (!firstHeartbeatReceived) {
-      logEvent("Waiting for initial heartbeat...");
+      logServerEvent("Waiting for initial heartbeat...");
       return;
     }
 
     if (isReconnecting) {
       if (!(wsInstance as any).hasLoggedReconnect) {
-        logEvent(`Skipping connection health check: Primary is already reconnecting`);
+        logServerEvent(`Skipping connection health check: Primary is already reconnecting`);
         (wsInstance as any).hasLoggedReconnect = true;
       }
       return;
@@ -133,7 +158,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
 
     if (Date.now() - lastEffectiveTimestamp > threshold) {
       isReconnecting = true;
-      logEvent('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
+      logServerEvent('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
       closeWebSocket();
       await new Promise((resolve) => setTimeout(resolve, 500));
       lastRestartTimestamp = Date.now();
@@ -142,16 +167,14 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
   };
 
   wsInstance.on('open', () => {
-    logEvent(`Helius Primary WebSocket is open`);
+    logServerEvent(`Helius Primary WebSocket is open`);
     isReconnecting = false;
-    // Reset both timestamps
     lastReceivedTxTimestamp = Date.now();
     lastHeartbeatTimestamp = Date.now();
     restoreTransactions();
+    restoreLogs();
     reconnectAttempts = 0;
 
-    // --- Send two subscription messages ---
-    // 1. Subscribe to transaction notifications (as before)
     wsInstance.send(JSON.stringify({
       "jsonrpc": "2.0",
       "id": `aurora-tx-${Date.now()}`,
@@ -165,7 +188,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
           ]
         },
         {
-          "commitment": "processed",
+          "commitment": "processed", // as soon as possible
           "encoding": "jsonParsed",
           "transactionDetails": "full",
           "showRewards": true,
@@ -173,7 +196,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         }
       ]
     }));
-    logEvent(`Subscribed to transaction notifications`);
+    logServerEvent(`Subscribed to transaction notifications`);
 
     wsInstance.send(JSON.stringify({
       "jsonrpc": "2.0",
@@ -182,14 +205,13 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       "params": [
         "SysvarC1ock11111111111111111111111111111111",
         {
-          "commitment": "processed",
+          "commitment": "finalized", // as stable as possible
           "encoding": "jsonParsed"
         }
       ]
     }));
-    logEvent(`Subscribed to heartbeat (clock sysvar)`);
+    logServerEvent(`Subscribed to heartbeat (clock sysvar)`);
 
-    // --- Set up intervals ---
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
         wsInstance.ping();
@@ -203,8 +225,8 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     wsInstance.on('close', (code, reason) => {
       clearInterval(pingInterval);
       clearInterval(healthCheckInterval);
-      logEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);
-      logEvent(`Code ${code}, Reason: ${reason}`);
+      logServerEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);
+      logServerEvent(`Code ${code}, Reason: ${reason}`);
       reconnect(clients);
     });
   });
@@ -214,7 +236,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       const parsed = JSON.parse(data.toString('utf8'));
 
       if (parsed?.params?.error) {
-        logEvent(`ERROR: ${JSON.stringify(parsed.params.error)}`);
+        logServerEvent(`ERROR: ${JSON.stringify(parsed.params.error)}`);
         return;
       }
 
@@ -227,12 +249,11 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
 
         if (!firstHeartbeatReceived) {
           firstHeartbeatReceived = true;
-          logEvent("Initial heartbeat received");
+          logServerEvent("Initial heartbeat received");
         }
         return;
       }
 
-      // Otherwise, treat the message as a transaction notification.
       const messageObj: SolanaTxNotificationType['payload'] = parsed;
 
       if (
@@ -256,7 +277,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         }
       };
 
-      logEvent(`Caching transaction ${messageObj.params.result.signature}`);
+      logServerEvent(`Caching transaction ${messageObj.params.result.signature}`);
       recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
       pruneOldTransactions();
@@ -273,23 +294,29 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
   });
 
   wsInstance.on('error', (err) => {
-    logEvent(`Primary WS Error: ${err}`);
+    logServerEvent(`Primary WS Error: ${err}`);
     reconnect(clients);
   });
 
   wsInstance.on('close', (code, reason) => {
-    logEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);
-    logEvent(`Code ${code}, Reason: ${reason}`);
+    logServerEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);
+    logServerEvent(`Code ${code}, Reason: ${reason}`);
     reconnect(clients);
   });
 
   heliusWs = wsInstance;
 
   return {
-    restoreTransactionsForClient(ws: WebSocket) {
-      logEvent(`Restoring ${recentTxCache.size} transactions for new client`);
+    sendRestoredTransactionsToClient(ws: WebSocket) {
+      logServerEvent(`Restoring ${recentTxCache.size} transactions for new client`);
       for (const cachedTx of recentTxCache.values()) {
         ws.send(JSON.stringify(cachedTx));
+      }
+    },
+    sendRestoredLogsToClient: async (ws: WebSocket) => {
+      logServerEvent(`Restoring ${recentLogsCache.size} logs for new client`);
+      for (const cachedLog of recentLogsCache.values()) {
+        ws.send(JSON.stringify({ type: 'log', payload: cachedLog }));
       }
     },
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {
@@ -298,7 +325,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         case SOLANA_TX_NOTIFICATION:
           break;
         default:
-          logEvent(`Unknown message type: ${type}`);
+          logServerEvent(`Unknown message type: ${type}`);
           break;
       }
     }

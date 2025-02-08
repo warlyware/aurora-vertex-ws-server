@@ -1,18 +1,17 @@
 import 'dotenv/config';
 import WebSocket from 'ws';
 import { messageTypes } from '../../types/messages';
-import { SolanaTxNotificationType } from '../../types/solana';
-import dayjs from 'dayjs';
-import Redis from 'ioredis';
-
-const { AURORA_SERVER_LOG } = messageTypes;
+import { eventBus, redis } from '../..';
+import { logServerEvent } from '../../logging';
+import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimestamp } from '../../types/solana';
+const { SERVER_LOG_EVENT } = messageTypes;
 
 type AuroraServerLogType = {
-  type: typeof AURORA_SERVER_LOG;
+  type: typeof SERVER_LOG_EVENT;
   payload: string;
 };
 
-const { SOLANA_TX_NOTIFICATION } = messageTypes;
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS } = messageTypes;
 
 const MAX_CACHE_SIZE = 1000;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -22,25 +21,13 @@ const processedSignatures = new Set<string>();
 const TX_EXPIRATION_TIME = 60000; // 1 minute
 let firstHeartbeatReceived = false;
 
-const recentTxCache = new Map<string, SolanaTxNotificationType>();
+const recentTxCache = new Map<string, SolanaTxNotificationFromHeliusWithTimestamp>();
 const recentLogsCache = new Map<string, AuroraServerLogType>();
 let lastReceivedTxTimestamp = Date.now();
 let lastHeartbeatTimestamp = Date.now();
 
 let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
-
-let redis: Redis | null = null;
-
-(() => {
-  console.log('process.env.IS_PRODUCTION:', !!process.env.IS_PRODUCTION);
-  if (process.env.IS_PRODUCTION) {
-    redis = new Redis();
-    console.log('✅ Redis connected in production mode');
-  } else {
-    console.log('🚨 Redis not connected in development mode');
-  }
-})();
 
 const pruneOldTransactions = () => {
   while (recentTxCache.size > MAX_CACHE_SIZE) {
@@ -51,27 +38,16 @@ const pruneOldTransactions = () => {
   }
 };
 
-const storeLog = async (event: string) => {
-  if (!process.env.IS_PRODUCTION || !redis) return;
-  await redis.set(`log:${Date.now()}`, event);
-};
-
 const restoreLogs = async () => {
   if (!process.env.IS_PRODUCTION || !redis) return;
   const logs = await redis.keys('log:*');
   const logsData = logs.length > 0 ? await redis.mget(...logs) : [];
   for (let i = 0; i < logs.length; i++) {
     recentLogsCache.set(logs[i], {
-      type: AURORA_SERVER_LOG,
+      type: SERVER_LOG_EVENT,
       payload: logsData?.[i] || ''
     });
   }
-};
-
-const logServerEvent = (event: string) => {
-  console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${event}`);
-
-  storeLog(event);
 };
 
 const storeTransaction = async (signature: string, transaction: any) => {
@@ -254,7 +230,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         return;
       }
 
-      const messageObj: SolanaTxNotificationType['payload'] = parsed;
+      const messageObj: SolanaTxNotificationFromHelius = parsed;
 
       if (
         !messageObj.params?.result?.signature ||
@@ -269,12 +245,9 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         processedSignatures.delete(messageObj.params.result.signature);
       }, TX_EXPIRATION_TIME);
 
-      const payloadWithTimestamp: SolanaTxNotificationType = {
-        type: SOLANA_TX_NOTIFICATION,
-        payload: {
-          timestamp: Date.now(),
-          ...messageObj
-        }
+      const payloadWithTimestamp: SolanaTxNotificationFromHeliusWithTimestamp = {
+        timestamp: Date.now(),
+        ...messageObj
       };
 
       logServerEvent(`Caching transaction ${messageObj.params.result.signature}`);
@@ -283,11 +256,11 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       pruneOldTransactions();
       lastReceivedTxTimestamp = Date.now();
 
-      for (const client of clients) {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(payloadWithTimestamp));
-        }
-      }
+      eventBus.emit(SOLANA_TX_NOTIFICATION_FROM_HELIUS, {
+        type: SOLANA_TX_NOTIFICATION_FROM_HELIUS,
+        payload: payloadWithTimestamp
+      });
+
     } catch (e) {
       console.error('Failed to parse JSON:', e);
     }
@@ -322,7 +295,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {
       const { type, payload } = message;
       switch (type) {
-        case SOLANA_TX_NOTIFICATION:
+        case SOLANA_TX_NOTIFICATION_FROM_HELIUS:
           break;
         default:
           logServerEvent(`Unknown message type: ${type}`);

@@ -1,15 +1,39 @@
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
-import { sendToConnectedClients } from '..';
+import { eventBus } from '..';
 import { BotMessage } from './bot';
 import { messageTypes } from '../types/messages';
+import { logBotEvent } from '../logging';
+import { SolanaTxEvent, SolanaTxEventForBot } from '../ws-bridge';
+import { SolanaTxNotificationFromHeliusWithTimestamp } from '../types/solana';
 
-const { BOT_NOTIFICATION, BOT_SPAWN, BOT_STOP } = messageTypes;
+const {
+  BOT_SPAWN,
+  BOT_STOP,
+  SOLANA_TX_EVENT,
+  SOLANA_TX_EVENT_FOR_BOT,
+  BOT_LOG_EVENT,
+  BOT_STATUS,
+  BOT_TRADE_NOTIFICATION,
+} = messageTypes;
 
-const bots: Map<string, {
-  process: ChildProcess,
-  strategy: string
-}> = new Map();
+export type BotInfo = {
+  botId: string;
+  strategy: string;
+};
+
+export type BotLogEvent = {
+  type: typeof BOT_LOG_EVENT;
+  payload: BotInfo & {
+    message: string;
+  };
+};
+
+export type Bot = {
+  process: ChildProcess;
+} & BotInfo;
+
+const bots: Map<string, Bot> = new Map();
 
 const sendToBotProcess = ({
   type,
@@ -42,17 +66,32 @@ export const spawnBot = (botId: string, strategy: string) => {
   }, botProcess);
 
   botProcess.on('message', (message: string) => {
-    sendToConnectedClients(JSON.parse(message));
+    const { type, payload } = JSON.parse(message) as BotMessage;
+
+    switch (type) {
+      case BOT_STATUS:
+        const existingBot = bots.get(botId);
+        if (existingBot) {
+          bots.set(botId, {
+            ...existingBot,
+            ...payload,
+            process: existingBot.process,
+          });
+        }
+        break;
+      case BOT_TRADE_NOTIFICATION:
+        console.log(`Bot ${botId} trade notification: ${payload}`);
+        break;
+    }
   });
 
   botProcess.on('exit', (code) => {
     const exitMessage = code === 0 ? 'stopped successfully' : `crashed with code ${code}`;
-    sendToConnectedClients({
-      type: BOT_NOTIFICATION,
-      payload: {
-        botId,
-        info: `Bot ${botId} ${exitMessage}`
-      }
+
+    logBotEvent({
+      botId,
+      strategy,
+      message: `Bot ${botId} ${exitMessage}`
     });
 
     bots.delete(botId);
@@ -61,14 +100,13 @@ export const spawnBot = (botId: string, strategy: string) => {
   bots.set(botId, {
     process: botProcess,
     strategy,
+    botId,
   });
 
-  sendToConnectedClients({
-    type: BOT_NOTIFICATION,
-    payload: {
-      botId,
-      info: `Bot ${botId} spawned`
-    }
+  logBotEvent({
+    botId,
+    strategy,
+    message: `Bot ${botId} spawned`,
   });
 };
 
@@ -83,12 +121,23 @@ export const stopBot = (botId: string) => {
     }, bot.process);
     // bot.process.kill();
   } else {
-    sendToConnectedClients({
-      type: BOT_NOTIFICATION,
-      payload: {
-        botId,
-        info: `Bot ${botId} not found`
-      }
+    logBotEvent({
+      botId,
+      strategy: 'N/A',
+      message: `Bot ${botId} not found`
     });
   }
 };
+
+eventBus.on(SOLANA_TX_EVENT, (event: SolanaTxEvent) => {
+  for (const [botId, botInfo] of bots) {
+    botInfo.process.send({
+      type: SOLANA_TX_EVENT_FOR_BOT,
+      payload: {
+        ...event.payload,
+        botId,
+        strategy: botInfo.strategy,
+      }
+    } as SolanaTxEventForBot);
+  }
+});

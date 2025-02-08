@@ -1,8 +1,8 @@
 import { AuroraMessage, messageTypes } from "./messages";
 
-const { SOLANA_TX_NOTIFICATION } = messageTypes;
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SOLANA_TX_EVENT } = messageTypes;
 
-type SolanaTxNotificationFromHelius = {
+export type SolanaTxNotificationFromHelius = {
   timestamp?: number;
   jsonrpc: "2.0";
   method: "transactionNotification";
@@ -89,7 +89,16 @@ type SolanaTxNotificationFromHelius = {
   };
 };
 
-export type SolanaTxNotificationType = {
-  type: typeof SOLANA_TX_NOTIFICATION;
-  payload: SolanaTxNotificationFromHelius;
+export type SolanaTxNotificationFromHeliusWithTimestamp = SolanaTxNotificationFromHelius & {
+  timestamp: number;
+};
+
+export type SolanaTxNotificationFromHeliusEvent = {
+  type: typeof SOLANA_TX_NOTIFICATION_FROM_HELIUS;
+  payload: SolanaTxNotificationFromHeliusWithTimestamp;
+};
+
+export type SolanaTxEvent = {
+  type: typeof SOLANA_TX_EVENT;
+  payload: SolanaTxNotificationFromHeliusWithTimestamp;
 };

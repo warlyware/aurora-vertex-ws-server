@@ -10,19 +10,33 @@ import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
 import { BotMessage } from "./bots/bot";
 import EventEmitter from "events";
+import { AuroraMessage } from "./types/messages";
+import Redis from "ioredis";
 
 const { wss } = setupApp();
 
 export const eventBus = new EventEmitter();
 export const clients = new Set<WebSocket>();
 
-export const sendToConnectedClients = (message: BotMessage) => {
+export const sendToConnectedClients = (message: AuroraMessage) => {
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(message));
     }
   }
 };
+
+export let redis: Redis | null = null;
+
+(() => {
+  console.log('process.env.IS_PRODUCTION:', !!process.env.IS_PRODUCTION);
+  if (process.env.IS_PRODUCTION) {
+    redis = new Redis();
+    console.log('✅ Redis connected in production mode');
+  } else {
+    console.log('🚨 Redis not connected in development mode');
+  }
+})();
 
 const botManager = setupBotManager();
 let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;

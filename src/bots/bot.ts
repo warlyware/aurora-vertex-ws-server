@@ -1,16 +1,31 @@
 import { messageTypes } from "../types/messages";
+import { SolanaTxEventForBot } from "../ws-bridge";
+import { logBotEvent } from "../logging";
 
-const { BOT_SPAWN, BOT_STATUS, BOT_TRADE_NOTIFICATION, BOT_NOTIFICATION, BOT_STOP } = messageTypes;
+const { BOT_SPAWN,
+  BOT_STATUS,
+  BOT_TRADE_NOTIFICATION,
+  BOT_STOP,
+  SOLANA_TX_EVENT_FOR_BOT,
+} = messageTypes;
 
 export type BotMessage = {
-  type: typeof BOT_STATUS | typeof BOT_TRADE_NOTIFICATION | typeof BOT_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
+  type: typeof BOT_STATUS | typeof BOT_TRADE_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
   payload: {
     botId: string;
     keypair?: string;
     strategy?: string;
     info?: string;
+    timestamp?: number;
+    price?: number;
+    quantity?: number;
+    isActive?: boolean;
   }
 }
+
+const sendToBotManager = (message: BotMessage) => {
+  process.send?.(JSON.stringify(message));
+};
 
 (() => {
   const MAX_TRADE_HISTORY_LENGTH = 1000;
@@ -39,56 +54,59 @@ export type BotMessage = {
     }
   };
 
-  let statusReportInterval: NodeJS.Timeout;
-  let mockTradeExecutionInterval: NodeJS.Timeout;
-
-  const initTrading = (botId: string) => {
-    const executeTradeLogic = () => {
-      console.log(`[${botId}] Executing trading logic...`);
-      process.send?.(
-        JSON.stringify({
-          type: BOT_TRADE_NOTIFICATION,
-          payload: {
-            botId,
-            time: Date.now(),
-            price: Math.random() * 100,
-            quantity: Math.random() * 10,
-          },
-        })
-      );
-
-      updateStats({
-        time: Date.now(),
+  const executeTradeLogic = (botId: string) => {
+    console.log(`[${botId}] Executing trading logic...`);
+    sendToBotManager({
+      type: BOT_TRADE_NOTIFICATION,
+      payload: {
+        botId,
+        timestamp: Date.now(),
         price: Math.random() * 100,
         quantity: Math.random() * 10,
-      });
-    };
+      },
+    });
 
-    mockTradeExecutionInterval = setInterval(executeTradeLogic, 5000);
+    updateStats({
+      timestamp: Date.now(),
+      price: Math.random() * 100,
+      quantity: Math.random() * 10,
+    });
+  };
+
+  let statusReportInterval: NodeJS.Timeout;
+
+  const handleSolanaEvent = (event: SolanaTxEventForBot) => {
+    logBotEvent({
+      botId: event.payload.botId,
+      strategy: event.payload.strategy,
+      message: `Solana event received: ${JSON.stringify(event)}`
+    });
+
+    const shouldExecuteTrade = false;
+
+    if (shouldExecuteTrade) {
+      executeTradeLogic(event.payload.botId);
+    }
   };
 
   const startBot = (botId: string, strategy: string, keypair: string) => {
     console.log('Starting bot', botId);
-    process.send?.(JSON.stringify({
+    sendToBotManager({
       type: BOT_STATUS,
       payload: {
         ...status,
         botId,
       },
-    }));
-
-    initTrading(botId);
+    });
 
     statusReportInterval = setInterval(() => {
-      process.send?.(
-        JSON.stringify({
-          type: BOT_STATUS,
-          payload: {
-            ...status,
-            botId,
-          },
-        })
-      );
+      sendToBotManager({
+        type: BOT_STATUS,
+        payload: {
+          ...status,
+          botId,
+        },
+      });
     }, 1000);
   }
 
@@ -108,7 +126,7 @@ export type BotMessage = {
         console.log(`Stopping bot ${botId}`);
         cleanup();
 
-        await process.send?.(JSON.stringify({
+        sendToBotManager({
           type: BOT_STATUS,
           payload: {
             ...status,
@@ -116,9 +134,12 @@ export type BotMessage = {
             info: `Bot ${botId} stopped successfully`,
             botId,
           },
-        }));
+        });
 
         process.exit(0);
+        break;
+      case SOLANA_TX_EVENT_FOR_BOT:
+        handleSolanaEvent(payload);
         break;
       default:
         console.log(`Unknown message message.type: ${type}`);
@@ -127,9 +148,6 @@ export type BotMessage = {
 
   const cleanup = () => {
     console.log(`Cleaning up before exit`);
-    if (mockTradeExecutionInterval) {
-      clearInterval(mockTradeExecutionInterval);
-    }
     if (statusReportInterval) {
       clearInterval(statusReportInterval);
     }

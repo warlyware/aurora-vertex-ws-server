@@ -38,19 +38,22 @@ const sendToBotProcess = ({
   type,
   payload
 }: BotMessage, botProcess: ChildProcess) => {
-  botProcess.send(JSON.stringify({
+  botProcess.send({
     type,
     payload,
-  }));
+  });
 };
 
 export const spawnBot = (botId: string, strategy: string) => {
+  console.log(`Spawning bot ${botId} with strategy ${strategy}`);
+
   if (bots.has(botId)) {
     console.log(`Bot ${botId} already exists. Skipping spawn.`);
     return;
   }
 
   const botScript = path.resolve(__dirname, './bot.js');
+  console.log(`Bot script: ${botScript}`);
   const botProcess = fork(botScript);
 
   const keypair = `keypair-${botId}`;
@@ -64,8 +67,8 @@ export const spawnBot = (botId: string, strategy: string) => {
     }
   }, botProcess);
 
-  botProcess.on('message', (message: string) => {
-    const { type, payload } = JSON.parse(message) as BotMessage;
+  botProcess.on('message', (message: BotMessage) => {
+    const { type, payload } = message;
 
     switch (type) {
       case BOT_STATUS:

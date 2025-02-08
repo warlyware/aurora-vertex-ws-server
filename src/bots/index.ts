@@ -1,7 +1,7 @@
 import { messageTypes } from "../types/messages";
 import { spawnBot, stopBot } from "./manager";
 
-const { BOT_SPAWN, BOT_STOP, BOT_RESTART } = messageTypes;
+const { BOT_SPAWN, BOT_STOP } = messageTypes;
 
 export const setupBotManager = () => {
   console.log("Bot Manager initialized");

@@ -8,9 +8,8 @@ import { setupMemoryWatcher } from "./watchers/memory";
 import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
-import { BotMessage } from "./bots/bot";
 import { AuroraMessage } from "./types/messages";
-import Redis from "ioredis";
+import { initRedis } from "./redis";
 
 const { wss } = setupApp();
 
@@ -23,25 +22,14 @@ export const sendToConnectedClients = (message: AuroraMessage) => {
     }
   }
 };
-
-export let redis: Redis | null = null;
-
-(() => {
-  console.log('process.env.IS_PRODUCTION:', !!process.env.IS_PRODUCTION);
-  if (process.env.IS_PRODUCTION) {
-    redis = new Redis();
-    console.log('✅ Redis connected in production mode');
-  } else {
-    console.log('🚨 Redis not connected in development mode');
-  }
-})();
-
 const botManager = setupBotManager();
 let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;
 
 if (process.env.IS_PRODUCTION) {
   solanaWatchers = setupSolanaWatchers(clients);
 }
+
+initRedis();
 
 wss.on("connection", async function (ws: WebSocket, req) {
   const parsedUrl = parse(req.url || '', true);

@@ -1,8 +1,7 @@
-import { redis } from "..";
 import { eventBus } from "../events/bus";
 import { messageTypes } from "../types/messages";
 import { BotLogEvent } from "../bots/manager";
-
+import { redis } from "../redis";
 const { SERVER_LOG_EVENT, BOT_LOG_EVENT } = messageTypes;
 
 type ServerLogEvent = {

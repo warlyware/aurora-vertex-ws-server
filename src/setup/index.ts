@@ -19,7 +19,8 @@ const {
   PING,
   PONG,
   TG_GET_ME,
-  TG_GET_CHATS
+  TG_GET_CHATS,
+  BOT_SPAWN,
 } = messageTypes;
 
 export const setupApp = () => {
@@ -86,7 +87,11 @@ export const setupEventListeners = (
         break;
       }
 
-      case BOTS.find((group) => group === type): {
+      // case BOTS.find((group) => group === type): {
+      //   botManager.handleMessage({ type, payload });
+      //   break;
+      // }
+      case BOT_SPAWN: {
         botManager.handleMessage({ type, payload });
         break;
       }

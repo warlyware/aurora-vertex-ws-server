@@ -24,7 +24,7 @@ export type BotMessage = {
 }
 
 const sendToBotManager = (message: BotMessage) => {
-  process.send?.(JSON.stringify(message));
+  process.send?.(message);
 };
 
 (() => {
@@ -90,7 +90,6 @@ const sendToBotManager = (message: BotMessage) => {
   };
 
   const startBot = (botId: string, strategy: string, keypair: string) => {
-    console.log('Starting bot', botId);
     sendToBotManager({
       type: BOT_STATUS,
       payload: {
@@ -110,8 +109,8 @@ const sendToBotManager = (message: BotMessage) => {
     }, 1000);
   }
 
-  process.on('message', async (message: string) => {
-    const { type, payload } = JSON.parse(message);
+  process.on('message', async (message: BotMessage) => {
+    const { type, payload } = message;
     const { botId, keypair, strategy } = payload;
 
     switch (type) {
@@ -139,7 +138,10 @@ const sendToBotManager = (message: BotMessage) => {
         process.exit(0);
         break;
       case SOLANA_TX_EVENT_FOR_BOT:
-        handleSolanaEvent(payload);
+        handleSolanaEvent({
+          type: SOLANA_TX_EVENT_FOR_BOT,
+          payload
+        } as SolanaTxEventForBot);
         break;
       default:
         console.log(`Unknown message message.type: ${type}`);

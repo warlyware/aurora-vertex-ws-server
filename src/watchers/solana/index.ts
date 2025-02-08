@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import WebSocket from 'ws';
 import { messageTypes } from '../../types/messages';
-import { redis } from '../..';
+import { redis } from '../../redis';
 import { logServerEvent } from '../../logging';
 import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimestamp } from '../../types/solana';
 import { eventBus } from '../../events/bus';
@@ -251,7 +251,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       const logs = await redis.keys('log:*');
       const logsData = logs.length > 0 ? await redis.mget(...logs) : [];
       for (let i = 0; i < logs.length; i++) {
-        ws.send(JSON.stringify({ type: 'log', payload: logsData?.[i] || '' }));
+        ws.send(logsData?.[i] || '');
       }
     },
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {

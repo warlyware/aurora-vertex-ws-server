@@ -1,11 +1,10 @@
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
-import { eventBus } from '..';
+import { eventBus } from '../events/bus';
 import { BotMessage } from './bot';
 import { messageTypes } from '../types/messages';
 import { logBotEvent } from '../logging';
-import { SolanaTxEvent, SolanaTxEventForBot } from '../ws-bridge';
-import { SolanaTxNotificationFromHeliusWithTimestamp } from '../types/solana';
+import { SolanaTxEvent, SolanaTxEventForBot } from '../events/bridge';
 
 const {
   BOT_SPAWN,

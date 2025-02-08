@@ -1,4 +1,5 @@
-import { eventBus, redis } from "..";
+import { redis } from "..";
+import { eventBus } from "../events/bus";
 import { messageTypes } from "../types/messages";
 import { BotLogEvent } from "../bots/manager";
 

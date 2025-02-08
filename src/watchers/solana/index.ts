@@ -1,19 +1,13 @@
 import 'dotenv/config';
 import WebSocket from 'ws';
 import { messageTypes } from '../../types/messages';
-import { eventBus, redis } from '../..';
+import { redis } from '../..';
 import { logServerEvent } from '../../logging';
 import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimestamp } from '../../types/solana';
-const { SERVER_LOG_EVENT } = messageTypes;
-
-type AuroraServerLogType = {
-  type: typeof SERVER_LOG_EVENT;
-  payload: string;
-};
+import { eventBus } from '../../events/bus';
 
 const { SOLANA_TX_NOTIFICATION_FROM_HELIUS } = messageTypes;
 
-const MAX_CACHE_SIZE = 1000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 let reconnectAttempts = 0;
 let heliusWs: WebSocket | null = null;
@@ -21,56 +15,16 @@ const processedSignatures = new Set<string>();
 const TX_EXPIRATION_TIME = 60000; // 1 minute
 let firstHeartbeatReceived = false;
 
-const recentTxCache = new Map<string, SolanaTxNotificationFromHeliusWithTimestamp>();
-const recentLogsCache = new Map<string, AuroraServerLogType>();
 let lastReceivedTxTimestamp = Date.now();
 let lastHeartbeatTimestamp = Date.now();
 
 let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
-const pruneOldTransactions = () => {
-  while (recentTxCache.size > MAX_CACHE_SIZE) {
-    const oldestKey = recentTxCache.keys().next().value;
-    if (oldestKey) {
-      recentTxCache.delete(oldestKey);
-    }
-  }
-};
-
-const restoreLogs = async () => {
-  if (!process.env.IS_PRODUCTION || !redis) return;
-  const logs = await redis.keys('log:*');
-  const logsData = logs.length > 0 ? await redis.mget(...logs) : [];
-  for (let i = 0; i < logs.length; i++) {
-    recentLogsCache.set(logs[i], {
-      type: SERVER_LOG_EVENT,
-      payload: logsData?.[i] || ''
-    });
-  }
-};
 
 const storeTransaction = async (signature: string, transaction: any) => {
   if (!process.env.IS_PRODUCTION || !redis) return;
   await redis.set(`tx:${signature}`, JSON.stringify(transaction));
-};
-
-const restoreTransactions = async () => {
-  if (!process.env.IS_PRODUCTION || !redis) return;
-  const keys = await redis.keys('tx:*');
-  const transactions = keys.length > 0 ? await redis.mget(...keys) : [];
-
-  const AMOUNT_TO_SEND_TO_CLIENT = 300;
-  const keysToSend = keys.slice(-AMOUNT_TO_SEND_TO_CLIENT);
-
-  for (let i = 0; i < keysToSend.length; i++) {
-    const key = keys[i];
-    const transaction = transactions[i];
-    if (transaction) {
-      const parsedTx = JSON.parse(transaction);
-      recentTxCache.set(key.split(':')[1], parsedTx);
-    }
-  }
 };
 
 export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
@@ -147,8 +101,6 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     isReconnecting = false;
     lastReceivedTxTimestamp = Date.now();
     lastHeartbeatTimestamp = Date.now();
-    restoreTransactions();
-    restoreLogs();
     reconnectAttempts = 0;
 
     wsInstance.send(JSON.stringify({
@@ -251,9 +203,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       };
 
       logServerEvent(`Caching transaction ${messageObj.params.result.signature}`);
-      recentTxCache.set(messageObj.params.result.signature, payloadWithTimestamp);
       storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
-      pruneOldTransactions();
       lastReceivedTxTimestamp = Date.now();
 
       eventBus.emit(SOLANA_TX_NOTIFICATION_FROM_HELIUS, {
@@ -280,16 +230,28 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
   heliusWs = wsInstance;
 
   return {
-    sendRestoredTransactionsToClient(ws: WebSocket) {
-      logServerEvent(`Restoring ${recentTxCache.size} transactions for new client`);
-      for (const cachedTx of recentTxCache.values()) {
-        ws.send(JSON.stringify(cachedTx));
+    sendRestoredTransactionsToClient: async (ws: WebSocket) => {
+      const AMOUNT_TO_SEND_TO_CLIENT = 300;
+      if (!redis) return;
+      logServerEvent(`Restoring transactions for new client`);
+      const keys = await redis.keys('tx:*');
+      const sortedKeys = keys.sort();
+      const keysToSend = sortedKeys.slice(-AMOUNT_TO_SEND_TO_CLIENT);
+
+      const transactions = keysToSend.length > 0 ? await redis.mget(...keysToSend) : [];
+      for (const tx of transactions) {
+        if (tx) {
+          ws.send(tx);
+        }
       }
     },
     sendRestoredLogsToClient: async (ws: WebSocket) => {
-      logServerEvent(`Restoring ${recentLogsCache.size} logs for new client`);
-      for (const cachedLog of recentLogsCache.values()) {
-        ws.send(JSON.stringify({ type: 'log', payload: cachedLog }));
+      if (!redis) return;
+      logServerEvent(`Restoring logs for new client`);
+      const logs = await redis.keys('log:*');
+      const logsData = logs.length > 0 ? await redis.mget(...logs) : [];
+      for (let i = 0; i < logs.length; i++) {
+        ws.send(JSON.stringify({ type: 'log', payload: logsData?.[i] || '' }));
       }
     },
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {

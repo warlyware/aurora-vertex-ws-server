@@ -9,13 +9,11 @@ import { setupFolderWatchers } from "./watchers/folders";
 import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
 import { BotMessage } from "./bots/bot";
-import EventEmitter from "events";
 import { AuroraMessage } from "./types/messages";
 import Redis from "ioredis";
 
 const { wss } = setupApp();
 
-export const eventBus = new EventEmitter();
 export const clients = new Set<WebSocket>();
 
 export const sendToConnectedClients = (message: AuroraMessage) => {
@@ -62,6 +60,7 @@ wss.on("connection", async function (ws: WebSocket, req) {
   setupEventListeners(ws, botManager, solanaWatchers);
   if (solanaWatchers) {
     solanaWatchers.sendRestoredTransactionsToClient(ws);
+    solanaWatchers.sendRestoredLogsToClient(ws);
   }
   // await createTgClient(ws);
 

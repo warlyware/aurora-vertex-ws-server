@@ -1,5 +1,5 @@
 import { messageTypes } from "../types/messages";
-import { SolanaTxEventForBot } from "../ws-bridge";
+import { SolanaTxEventForBot } from "../events/bridge";
 import { logBotEvent } from "../logging";
 
 const { BOT_SPAWN,

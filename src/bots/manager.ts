@@ -12,7 +12,7 @@ const {
   SOLANA_TX_EVENT,
   SOLANA_TX_EVENT_FOR_BOT,
   BOT_LOG_EVENT,
-  BOT_STATUS,
+  BOT_STATUS_UPDATE,
   BOT_TRADE_NOTIFICATION,
 } = messageTypes;
 
@@ -71,18 +71,41 @@ export const spawnBot = (botId: string, strategy: string) => {
     const { type, payload } = message;
 
     switch (type) {
-      case BOT_STATUS:
+      case BOT_STATUS_UPDATE:
         const existingBot = bots.get(botId);
+
         if (existingBot) {
           bots.set(botId, {
             ...existingBot,
             ...payload,
-            process: existingBot.process,
+          });
+
+          eventBus.emit(BOT_STATUS_UPDATE, {
+            type: BOT_STATUS_UPDATE,
+            payload
           });
         }
         break;
+
       case BOT_TRADE_NOTIFICATION:
         console.log(`Bot ${botId} trade notification: ${payload}`);
+
+        eventBus.emit(BOT_TRADE_NOTIFICATION, {
+          type: BOT_TRADE_NOTIFICATION,
+          payload
+        });
+        break;
+
+      case BOT_LOG_EVENT:
+        console.log(`Bot ${botId} log event: ${payload}`);
+
+        eventBus.emit(BOT_LOG_EVENT, {
+          type: BOT_LOG_EVENT,
+          payload
+        });
+
+      default:
+        console.warn(`Unhandled message type: ${type}`);
         break;
     }
   });

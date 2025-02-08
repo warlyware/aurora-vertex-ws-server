@@ -21,6 +21,11 @@ let lastHeartbeatTimestamp = Date.now();
 let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
+const accountsToWatch = [
+  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
+  '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
+];
+
 
 const storeTransaction = async (signature: string, transaction: any) => {
   if (!process.env.IS_PRODUCTION || !redis) return;
@@ -111,9 +116,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
         {
           "vote": false,
           "failed": false,
-          "accountInclude": [
-            "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
-          ]
+          "accountInclude": accountsToWatch
         },
         {
           "commitment": "processed", // as soon as possible

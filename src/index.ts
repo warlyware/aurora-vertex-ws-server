@@ -25,7 +25,7 @@ export const sendToConnectedClients = (message: AuroraMessage) => {
 const botManager = setupBotManager();
 let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;
 
-if (process.env.IS_PRODUCTION) {
+if (true) {
   solanaWatchers = setupSolanaWatchers(clients);
 }
 

@@ -13,7 +13,7 @@ import cors from "cors";
 import { setupTransferSolRoute } from "../endpoints/tokens/transfer-sol";
 import { setupBuyOnPumpfunRoute } from "../endpoints/tokens/buy-on-pumpfun";
 import { setupTransferSplTokensRoute } from "../endpoints/tokens/transfer-spl-tokens";
-
+import { setupEventBusListeners } from "../events/bridge";
 const {
   GET_COIN_INFO,
   PING,
@@ -44,6 +44,7 @@ export const setupApp = () => {
   setupTransferSolRoute(router);
   setupBuyOnPumpfunRoute(router);
   setupTransferSplTokensRoute(router);
+  setupEventBusListeners();
 
   app.use(router);
 
@@ -87,11 +88,7 @@ export const setupEventListeners = (
         break;
       }
 
-      // case BOTS.find((group) => group === type): {
-      //   botManager.handleMessage({ type, payload });
-      //   break;
-      // }
-      case BOT_SPAWN: {
+      case BOTS.find((group) => group === type): {
         botManager.handleMessage({ type, payload });
         break;
       }

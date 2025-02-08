@@ -3,14 +3,14 @@ import { SolanaTxEventForBot } from "../events/bridge";
 import { logBotEvent } from "../logging";
 
 const { BOT_SPAWN,
-  BOT_STATUS,
+  BOT_STATUS_UPDATE,
   BOT_TRADE_NOTIFICATION,
   BOT_STOP,
   SOLANA_TX_EVENT_FOR_BOT,
 } = messageTypes;
 
 export type BotMessage = {
-  type: typeof BOT_STATUS | typeof BOT_TRADE_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
+  type: typeof BOT_STATUS_UPDATE | typeof BOT_TRADE_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
   payload: {
     botId: string;
     keypair?: string;
@@ -91,16 +91,22 @@ const sendToBotManager = (message: BotMessage) => {
 
   const startBot = (botId: string, strategy: string, keypair: string) => {
     sendToBotManager({
-      type: BOT_STATUS,
+      type: BOT_STATUS_UPDATE,
       payload: {
         ...status,
         botId,
       },
     });
 
+    logBotEvent({
+      botId,
+      strategy,
+      message: `Bot ${botId} started successfully`
+    });
+
     statusReportInterval = setInterval(() => {
       sendToBotManager({
-        type: BOT_STATUS,
+        type: BOT_STATUS_UPDATE,
         payload: {
           ...status,
           botId,
@@ -119,14 +125,21 @@ const sendToBotManager = (message: BotMessage) => {
           console.error(`Missing required parameters for starting bot`);
           return;
         }
+
         startBot(botId, strategy, keypair);
         break;
       case BOT_STOP:
         console.log(`Stopping bot ${botId}`);
         cleanup();
 
+        logBotEvent({
+          botId,
+          strategy: strategy || '',
+          message: `Bot ${botId} stopped successfully`
+        });
+
         sendToBotManager({
-          type: BOT_STATUS,
+          type: BOT_STATUS_UPDATE,
           payload: {
             ...status,
             isActive: false,

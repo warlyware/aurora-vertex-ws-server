@@ -5,3 +5,6 @@ export const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "";
 
 export const HELIUS_API_KEY = process.env.HELIUS_API_KEY || "";
 export const AURORA_VERTEX_API_KEY = process.env.AURORA_VERTEX_API_KEY || "";
+export const AURORA_VERTEX_WS_URL = 'http://localhost:3002';
+export const AURORA_VERTEX_API_URL = 'http://localhost:3002';
+// export const AURORA_VERTEX_WS_URL = 'wss://api.auroravertex.click';

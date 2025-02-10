@@ -13,7 +13,7 @@ export type SolanaTxEvent = {
 };
 
 export type SolanaTxEventForBot = {
-  type: typeof SOLANA_TX_EVENT_FOR_BOT;
+  type: typeof SOLANA_TX_EVENT;
   payload: SolanaTxNotificationFromHeliusWithTimestamp & {
     botId: string;
     strategy: string;
@@ -42,7 +42,6 @@ export const setupEventBusListeners = () => {
   });
 
   eventBus.on(BOT_LOG_EVENT, (event: BotLogEvent) => {
-    console.log(`Bot log event: ${event}`);
     broadcastToWebSocketClients(event);
   });
 

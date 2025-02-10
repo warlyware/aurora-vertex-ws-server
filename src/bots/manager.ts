@@ -4,16 +4,16 @@ import { eventBus } from '../events/bus';
 import { BotMessage } from './bot';
 import { messageTypes } from '../types/messages';
 import { logBotEvent } from '../logging';
-import { SolanaTxEvent, SolanaTxEventForBot } from '../events/bridge';
+import { SolanaTxEvent } from '../events/bridge';
 
 const {
   BOT_SPAWN,
   BOT_STOP,
   SOLANA_TX_EVENT,
-  SOLANA_TX_EVENT_FOR_BOT,
   BOT_LOG_EVENT,
   BOT_STATUS_UPDATE,
   BOT_TRADE_NOTIFICATION,
+  SOLANA_TX_EVENT_FOR_BOT,
 } = messageTypes;
 
 export type BotInfo = {
@@ -24,7 +24,7 @@ export type BotInfo = {
 export type BotLogEvent = {
   type: typeof BOT_LOG_EVENT;
   payload: BotInfo & {
-    message: string;
+    info: string;
   };
 };
 
@@ -53,7 +53,6 @@ export const spawnBot = (botId: string, strategy: string) => {
   }
 
   const botScript = path.resolve(__dirname, './bot.js');
-  console.log(`Bot script: ${botScript}`);
   const botProcess = fork(botScript);
 
   const keypair = `keypair-${botId}`;
@@ -69,6 +68,7 @@ export const spawnBot = (botId: string, strategy: string) => {
 
   botProcess.on('message', (message: BotMessage) => {
     const { type, payload } = message;
+    if (!payload) return;
 
     switch (type) {
       case BOT_STATUS_UPDATE:
@@ -97,11 +97,15 @@ export const spawnBot = (botId: string, strategy: string) => {
         break;
 
       case BOT_LOG_EVENT:
-        console.log(`Bot ${botId} log event: ${payload}`);
-
+        console.log(`received log event from bot ${botId}:`, payload);
         eventBus.emit(BOT_LOG_EVENT, {
           type: BOT_LOG_EVENT,
-          payload
+          payload: {
+            botId,
+            strategy,
+            info: payload.info,
+            data: payload.data,
+          }
         });
 
       default:
@@ -116,7 +120,7 @@ export const spawnBot = (botId: string, strategy: string) => {
     logBotEvent({
       botId,
       strategy,
-      message: `Bot ${botId} ${exitMessage}`
+      info: `Bot ${botId} ${exitMessage}`
     });
 
     bots.delete(botId);
@@ -131,7 +135,7 @@ export const spawnBot = (botId: string, strategy: string) => {
   logBotEvent({
     botId,
     strategy,
-    message: `Bot ${botId} spawned`,
+    info: `Bot spawned with strategy ${strategy}`,
   });
 };
 
@@ -149,7 +153,7 @@ export const stopBot = (botId: string) => {
     logBotEvent({
       botId,
       strategy: 'N/A',
-      message: `Bot ${botId} not found`
+      info: `Bot ${botId} not found`
     });
   }
 };
@@ -163,6 +167,6 @@ eventBus.on(SOLANA_TX_EVENT, (event: SolanaTxEvent) => {
         botId,
         strategy: botInfo.strategy,
       }
-    } as SolanaTxEventForBot);
+    });
   }
 });

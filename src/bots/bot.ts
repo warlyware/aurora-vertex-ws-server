@@ -1,12 +1,13 @@
 import { messageTypes } from "../types/messages";
 import { SolanaTxEventForBot } from "../events/bridge";
-import { logBotEvent } from "../logging";
 
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
   BOT_TRADE_NOTIFICATION,
   BOT_STOP,
+  SOLANA_TX_EVENT,
   SOLANA_TX_EVENT_FOR_BOT,
+  BOT_LOG_EVENT
 } = messageTypes;
 
 export type BotMessage = {
@@ -20,10 +21,15 @@ export type BotMessage = {
     price?: number;
     quantity?: number;
     isActive?: boolean;
+    message?: string;
+    data?: any;
   }
 }
 
 const sendToBotManager = (message: BotMessage) => {
+  if (message.type === BOT_LOG_EVENT) {
+    console.log('sending message to bot manager', message);
+  }
   process.send?.(message);
 };
 
@@ -76,10 +82,16 @@ const sendToBotManager = (message: BotMessage) => {
   let statusReportInterval: NodeJS.Timeout;
 
   const handleSolanaEvent = (event: SolanaTxEventForBot) => {
-    logBotEvent({
-      botId: event.payload.botId,
-      strategy: event.payload.strategy,
-      message: `Solana event received: ${JSON.stringify(event)}`
+    const txSignature = event.payload?.params?.result?.signature;
+
+    sendToBotManager({
+      type: BOT_LOG_EVENT,
+      payload: {
+        botId: event.payload.botId,
+        strategy: event.payload.strategy,
+        info: `Solana event received: ${txSignature}`,
+        data: event.payload,
+      }
     });
 
     const shouldExecuteTrade = false;
@@ -96,12 +108,6 @@ const sendToBotManager = (message: BotMessage) => {
         ...status,
         botId,
       },
-    });
-
-    logBotEvent({
-      botId,
-      strategy,
-      message: `Bot ${botId} started successfully`
     });
 
     statusReportInterval = setInterval(() => {
@@ -132,18 +138,12 @@ const sendToBotManager = (message: BotMessage) => {
         console.log(`Stopping bot ${botId}`);
         cleanup();
 
-        logBotEvent({
-          botId,
-          strategy: strategy || '',
-          message: `Bot ${botId} stopped successfully`
-        });
-
         sendToBotManager({
           type: BOT_STATUS_UPDATE,
           payload: {
             ...status,
             isActive: false,
-            info: `Bot ${botId} stopped successfully`,
+            info: `Bot stopped successfully`,
             botId,
           },
         });
@@ -153,7 +153,11 @@ const sendToBotManager = (message: BotMessage) => {
       case SOLANA_TX_EVENT_FOR_BOT:
         handleSolanaEvent({
           type: SOLANA_TX_EVENT_FOR_BOT,
-          payload
+          payload: {
+            ...payload,
+            botId,
+            strategy,
+          }
         } as SolanaTxEventForBot);
         break;
       default:

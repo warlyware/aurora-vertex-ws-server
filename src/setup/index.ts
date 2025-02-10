@@ -14,13 +14,14 @@ import { setupTransferSolRoute } from "../endpoints/tokens/transfer-sol";
 import { setupBuyOnPumpfunRoute } from "../endpoints/tokens/buy-on-pumpfun";
 import { setupTransferSplTokensRoute } from "../endpoints/tokens/transfer-spl-tokens";
 import { setupEventBusListeners } from "../events/bridge";
+import { setupUpdateBotSettingsRoute } from "../endpoints/bots/update-bot-settings";
+
 const {
   GET_COIN_INFO,
   PING,
   PONG,
   TG_GET_ME,
   TG_GET_CHATS,
-  BOT_SPAWN,
 } = messageTypes;
 
 export const setupApp = () => {
@@ -45,6 +46,7 @@ export const setupApp = () => {
   setupBuyOnPumpfunRoute(router);
   setupTransferSplTokensRoute(router);
   setupEventBusListeners();
+  setupUpdateBotSettingsRoute(router);
 
   app.use(router);
 

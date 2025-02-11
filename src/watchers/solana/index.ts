@@ -247,7 +247,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       for (const tx of transactions) {
         if (tx) {
           sendToConnectedClients({
-            type: SERVER_LOG_EVENT,
+            type: SOLANA_TX_NOTIFICATION_FROM_HELIUS,
             payload: tx
           });
         }

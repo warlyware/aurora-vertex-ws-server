@@ -7,7 +7,7 @@ import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimes
 import { eventBus } from '../../events/bus';
 import { sendToConnectedClients } from '../..';
 
-const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SERVER_LOG_EVENT } = messageTypes;
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SERVER_LOG_EVENT, SOLANA_TX_EVENT } = messageTypes;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 let reconnectAttempts = 0;
@@ -247,7 +247,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       for (const tx of transactions) {
         if (tx) {
           sendToConnectedClients({
-            type: SOLANA_TX_NOTIFICATION_FROM_HELIUS,
+            type: SOLANA_TX_EVENT,
             payload: tx
           });
         }
@@ -259,7 +259,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       logServerEvent(`Restoring logs for new client`);
       const logs = await redis.keys('log:*');
       const sortedLogs = logs.sort();
-      const logsToSend = sortedLogs.slice(-AMOUNT_TO_SEND_TO_CLIENT);
+      const logsToSend = sortedLogs.slice(-AMOUNT_TO_SEND_TO_CLIENT).map(log => log.replace('log:', ''));
       const logsData = logsToSend.length > 0 ? await redis.mget(...logsToSend) : [];
       console.log('number of logs to send', logsData.length);
       for (let i = 0; i < logsToSend.length; i++) {

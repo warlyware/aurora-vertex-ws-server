@@ -1,6 +1,9 @@
+import { Bot } from "../../bots/manager";
 import { getGqlClient } from "../../graphql/client";
 import { ADD_WALLET } from "../../graphql/mutations/add-wallet";
 import { UPDATE_BOT_SETTINGS } from "../../graphql/mutations/update-bot-settings";
+import { GET_BOT_BY_ID } from "../../graphql/queries/get-bot-by-id";
+import { GET_BOTS_BY_USER_ID } from "../../graphql/queries/get-bots-by-user-id";
 import { GET_WALLET_BY_ADDRESS } from "../../graphql/queries/get-wallet-by-address";
 import { isValidPublicKey } from "../solana";
 import { Response } from "express";
@@ -106,4 +109,30 @@ export const updateBotSettings = async (botId: string, botSettings: BotSettings,
   }
 
   return update_bots_by_pk;
+}
+
+export const getBotsByUserId = async (userId: string) => {
+  const client = await getGqlClient();
+
+  const { bots }: { bots: Bot[] } = await client.request({
+    document: GET_BOTS_BY_USER_ID,
+    variables: {
+      userId,
+    },
+  });
+
+  return bots;
+}
+
+export const getBotById = async (botId: string) => {
+  const client = await getGqlClient();
+
+  const { bots_by_pk }: { bots_by_pk: Bot } = await client.request({
+    document: GET_BOT_BY_ID,
+    variables: {
+      botId,
+    },
+  });
+
+  return bots_by_pk;
 }

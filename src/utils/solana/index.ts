@@ -159,3 +159,19 @@ export const getPriorityFeeEstimate = async (transaction: Transaction) => {
   );
   return data.result;
 }
+
+export const getAbbreviatedAddress = (
+  address?: string | PublicKeyCredential | null,
+  identifierLength: number = 6
+) => {
+  if (!address) return "";
+  // check if it's a solana public key
+  if (typeof address !== "string") {
+    address = address.toString();
+  }
+
+  if (!address) return "";
+  return `${address.slice(0, identifierLength)}...${address.slice(
+    address.length - identifierLength
+  )}`;
+};

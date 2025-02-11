@@ -24,8 +24,6 @@ export const logServerEvent = (event: ServerLogEvent['payload']) => {
 };
 
 export const logBotEvent = (payload: BotLogEvent['payload']) => {
-  console.log('logBotEvent', payload);
-
   const event = {
     type: BOT_LOG_EVENT,
     payload

@@ -17,6 +17,19 @@ export type SolanaTxEventForBot = {
   payload: SolanaTxNotificationFromHeliusWithTimestamp & {
     botId: string;
     strategy: string;
+    actions: {
+      type: string;
+      description: string;
+      rawInfo: any;
+    }[];
+    data: {
+      tx: SolanaTxNotificationFromHeliusWithTimestamp;
+      actions: {
+        type: string;
+        description: string;
+        rawInfo: any;
+      }[];
+    };
   };
 };
 

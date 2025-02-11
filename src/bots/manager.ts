@@ -5,6 +5,7 @@ import { BotMessage } from './bot';
 import { messageTypes } from '../types/messages';
 import { logBotEvent } from '../logging';
 import { SolanaTxEvent } from '../events/bridge';
+import { getBotById } from '../utils/bots';
 
 const {
   BOT_SPAWN,
@@ -19,12 +20,34 @@ const {
 export type BotInfo = {
   botId: string;
   strategy: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  buyRatio: number;
+  priorityFeeInLamports: number;
+  ejectWallet: {
+    id: string;
+    address: string;
+  };
+  botWallet: {
+    wallet: {
+      keypair: {
+        publicKey: string;
+      };
+    };
+  };
+  user: {
+    id: string;
+  };
 };
 
 export type BotLogEvent = {
   type: typeof BOT_LOG_EVENT;
-  payload: BotInfo & {
+  payload: {
+    botId: string;
+    strategy: string;
     info: string;
+    data?: any;
   };
 };
 
@@ -44,11 +67,18 @@ const sendToBotProcess = ({
   });
 };
 
-export const spawnBot = (botId: string, strategy: string) => {
+export const spawnBot = async (botId: string, strategy: string) => {
   console.log(`Spawning bot ${botId} with strategy ${strategy}`);
 
   if (bots.has(botId)) {
     console.log(`Bot ${botId} already exists. Skipping spawn.`);
+    return;
+  }
+
+  const botInfo = await getBotById(botId);
+
+  if (!botInfo) {
+    console.log(`Bot ${botId} not found. Skipping spawn.`);
     return;
   }
 
@@ -97,14 +127,12 @@ export const spawnBot = (botId: string, strategy: string) => {
         break;
 
       case BOT_LOG_EVENT:
-        console.log(`received log event from bot ${botId}:`, payload);
         eventBus.emit(BOT_LOG_EVENT, {
           type: BOT_LOG_EVENT,
           payload: {
+            ...payload,
             botId,
             strategy,
-            info: payload.info,
-            data: payload.data,
           }
         });
 
@@ -120,22 +148,21 @@ export const spawnBot = (botId: string, strategy: string) => {
     logBotEvent({
       botId,
       strategy,
-      info: `Bot ${botId} ${exitMessage}`
+      info: `${botInfo.name} quit: ${exitMessage}`
     });
 
     bots.delete(botId);
   });
 
   bots.set(botId, {
+    ...botInfo,
     process: botProcess,
-    strategy,
-    botId,
   });
 
   logBotEvent({
     botId,
     strategy,
-    info: `Bot spawned with strategy ${strategy}`,
+    info: `${botInfo.name} spawned with strategy ${strategy}`,
   });
 };
 

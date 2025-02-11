@@ -1,9 +1,9 @@
 import { sendToConnectedClients } from "..";
 import { eventBus } from "./bus";
-import { BotLogEvent } from "../bots/manager";
 import { AuroraMessage } from "../types/messages";
 import { messageTypes } from "../types/messages";
 import { SolanaTxNotificationFromHeliusEvent, SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
+import { BotLogEvent } from "../logging";
 
 const { SOLANA_TX_EVENT, SOLANA_TX_EVENT_FOR_BOT, BOT_STATUS_UPDATE } = messageTypes;
 

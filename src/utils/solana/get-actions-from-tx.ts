@@ -46,9 +46,10 @@ const handleRaydiumSwap = (result: any): TxAction => {
   const splTokenAmount = ownerPartOfSwap?.parsed?.info?.amount;
   const lamportAmount = otherPartOfSwap?.parsed?.info?.amount / LAMPORTS_PER_SOL;
 
+  // TODO: Fix this
   return {
     type: 'RAYDIUM_SWAP',
-    description: `${getAbbreviatedAddress(txOwner)} swapped ${splTokenAmount} ${getAbbreviatedAddress(splMint)} for ${lamportAmount} SOL`,
+    description: `WRONG: ${getAbbreviatedAddress(txOwner)} swapped ${splTokenAmount} ${getAbbreviatedAddress(splMint)} for ${lamportAmount} SOL`,
     rawInfo: {
       ownerPostTokenBalances,
       splMint,

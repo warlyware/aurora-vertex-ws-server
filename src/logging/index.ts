@@ -1,12 +1,21 @@
 import { eventBus } from "../events/bus";
 import { messageTypes } from "../types/messages";
-import { BotLogEvent } from "../bots/manager";
 import { redis } from "../redis";
 const { SERVER_LOG_EVENT, BOT_LOG_EVENT } = messageTypes;
 
 type ServerLogEvent = {
   type: typeof SERVER_LOG_EVENT;
   payload: string;
+};
+
+export type BotLogEvent = {
+  type: typeof BOT_LOG_EVENT;
+  payload: {
+    botId: string;
+    strategy: string;
+    info: string;
+    data?: any;
+  };
 };
 
 const storeLog = async (event: string) => {

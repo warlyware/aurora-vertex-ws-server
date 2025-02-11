@@ -5,8 +5,9 @@ import { redis } from '../../redis';
 import { logServerEvent } from '../../logging';
 import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimestamp } from '../../types/solana';
 import { eventBus } from '../../events/bus';
+import { sendToConnectedClients } from '../..';
 
-const { SOLANA_TX_NOTIFICATION_FROM_HELIUS } = messageTypes;
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SERVER_LOG_EVENT } = messageTypes;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 let reconnectAttempts = 0;
@@ -22,7 +23,7 @@ let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
 const accountsToWatch = [
-  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
+  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj', // Euris
   '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
 ];
 
@@ -234,7 +235,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
 
   return {
     sendRestoredTransactionsToClient: async (ws: WebSocket) => {
-      const AMOUNT_TO_SEND_TO_CLIENT = 300;
+      const AMOUNT_TO_SEND_TO_CLIENT = 100;
       if (!redis) return;
       logServerEvent(`Restoring transactions for new client`);
       const keys = await redis.keys('tx:*');
@@ -242,19 +243,30 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
       const keysToSend = sortedKeys.slice(-AMOUNT_TO_SEND_TO_CLIENT);
 
       const transactions = keysToSend.length > 0 ? await redis.mget(...keysToSend) : [];
+      console.log('number of transactions to send', transactions.length);
       for (const tx of transactions) {
         if (tx) {
-          ws.send(tx);
+          sendToConnectedClients({
+            type: SERVER_LOG_EVENT,
+            payload: tx
+          });
         }
       }
     },
     sendRestoredLogsToClient: async (ws: WebSocket) => {
+      const AMOUNT_TO_SEND_TO_CLIENT = 100;
       if (!redis) return;
       logServerEvent(`Restoring logs for new client`);
       const logs = await redis.keys('log:*');
-      const logsData = logs.length > 0 ? await redis.mget(...logs) : [];
-      for (let i = 0; i < logs.length; i++) {
-        ws.send(logsData?.[i] || '');
+      const sortedLogs = logs.sort();
+      const logsToSend = sortedLogs.slice(-AMOUNT_TO_SEND_TO_CLIENT);
+      const logsData = logsToSend.length > 0 ? await redis.mget(...logsToSend) : [];
+      console.log('number of logs to send', logsData.length);
+      for (let i = 0; i < logsToSend.length; i++) {
+        sendToConnectedClients({
+          type: SERVER_LOG_EVENT,
+          payload: logsData[i] || ''
+        });
       }
     },
     handleMessage: async (message: { type: string; payload: string }, ws: WebSocket) => {

@@ -1,6 +1,6 @@
 import { messageTypes } from "../types/messages";
 import { SolanaTxEventForBot } from "../events/bridge";
-import { getTxActions } from "../utils/solana/get-actions-from-tx";
+import { getActionsFromTx, TxAction } from "../utils/solana/get-actions-from-tx";
 
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
@@ -23,11 +23,7 @@ export type BotMessage = {
     isActive?: boolean;
     message?: string;
     data?: any;
-    actions?: {
-      type: string;
-      description: string;
-      rawInfo: any;
-    }[];
+    actions?: TxAction[];
   }
 }
 
@@ -86,7 +82,7 @@ const sendToBotManager = (message: BotMessage) => {
   const handleSolanaEvent = (event: SolanaTxEventForBot) => {
     const txSignature = event.payload?.params?.result?.signature;
 
-    const actions = getTxActions(event);
+
 
     sendToBotManager({
       type: BOT_LOG_EVENT,
@@ -94,14 +90,9 @@ const sendToBotManager = (message: BotMessage) => {
         botId: event.payload.botId,
         strategy: event.payload.strategy,
         info: `Solana event received: ${txSignature}`,
-        actions: actions.map(action => ({
-          type: action.type,
-          description: action.description,
-          rawInfo: action.rawInfo,
-        })),
+        actions: event.payload.actions,
         data: {
           tx: event.payload,
-          actions,
         }
       }
     });

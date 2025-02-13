@@ -4,12 +4,16 @@ import { AuroraMessage } from "../types/messages";
 import { messageTypes } from "../types/messages";
 import { SolanaTxNotificationFromHeliusEvent, SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
 import { BotLogEvent } from "../logging";
+import { getActionsFromTx, TxAction } from "../utils/solana/get-actions-from-tx";
 
-const { SOLANA_TX_EVENT, SOLANA_TX_EVENT_FOR_BOT, BOT_STATUS_UPDATE } = messageTypes;
+const { SOLANA_TX_EVENT, BOT_STATUS_UPDATE } = messageTypes;
 
 export type SolanaTxEvent = {
   type: typeof SOLANA_TX_EVENT;
-  payload: SolanaTxNotificationFromHeliusWithTimestamp;
+  payload: {
+    tx: SolanaTxNotificationFromHeliusWithTimestamp;
+    actions: TxAction[];
+  };
 };
 
 export type SolanaTxEventForBot = {
@@ -17,11 +21,7 @@ export type SolanaTxEventForBot = {
   payload: SolanaTxNotificationFromHeliusWithTimestamp & {
     botId: string;
     strategy: string;
-    actions: {
-      type: string;
-      description: string;
-      rawInfo: any;
-    }[];
+    actions: TxAction[];
     data: {
       tx: SolanaTxNotificationFromHeliusWithTimestamp;
       actions: {
@@ -41,9 +41,14 @@ const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, BOT_LOG_EVENT, SERVER_LOG_EVENT } = 
 
 export const setupEventBusListeners = () => {
   eventBus.on(SOLANA_TX_NOTIFICATION_FROM_HELIUS, (event: SolanaTxNotificationFromHeliusEvent) => {
+    const actions = getActionsFromTx(event);
+
     const solanaTxEvent: SolanaTxEvent = {
       type: SOLANA_TX_EVENT,
-      payload: event.payload
+      payload: {
+        tx: event.payload,
+        actions,
+      }
     };
 
     eventBus.emit(SOLANA_TX_EVENT, solanaTxEvent);

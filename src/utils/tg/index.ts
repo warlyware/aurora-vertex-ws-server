@@ -133,7 +133,7 @@ export async function createTgClient(ws?: WebSocket) {
 
             if (message) {
                 if (ws) {
-                    for (const ws of clients) {
+                    for (const [userId, ws] of clients) {
                         if (ws.readyState === ws.OPEN) {
                             ws.send(JSON.stringify({
                                 type: messageTypes.TG_CHAT_MESSAGE,

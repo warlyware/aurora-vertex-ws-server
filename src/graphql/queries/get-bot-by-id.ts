@@ -7,8 +7,6 @@ query GET_BOT_BY_ID($botId: uuid!) {
     name
     createdAt
     updatedAt
-    buyRatio
-    priorityFeeInLamports
     ejectWallet {
       id
       address  

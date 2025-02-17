@@ -1,6 +1,6 @@
 import { messageTypes } from "../types/messages";
-import { SolanaTxEventForBot } from "../events/bridge";
-import { getActionsFromTx, TxAction } from "../utils/solana/get-actions-from-tx";
+import { TxAction } from "../utils/solana/get-actions-from-tx";
+import { SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
 
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
@@ -24,6 +24,7 @@ export type BotMessage = {
     message?: string;
     data?: any;
     actions?: TxAction[];
+    tx?: SolanaTxNotificationFromHeliusWithTimestamp | undefined;
   }
 }
 
@@ -79,21 +80,35 @@ const sendToBotManager = (message: BotMessage) => {
 
   let statusReportInterval: NodeJS.Timeout;
 
-  const handleSolanaEvent = (event: SolanaTxEventForBot) => {
-    const txSignature = event.payload?.params?.result?.signature;
+  const handleSolanaEvent = (event: {
+    type: typeof SOLANA_TX_EVENT_FOR_BOT;
+    payload: {
+      tx: SolanaTxNotificationFromHeliusWithTimestamp;
+      actions: TxAction[];
+      botId: string;
+      strategy: string;
+    }
+  }) => {
+    const txSignature = event.payload.tx?.params?.result?.signature;
+    console.log('handleSolanaEvent', event.payload);
 
+    let mainAction: TxAction | undefined;
+    const isPumpFunBuy = event.payload.actions?.some(action => action.type === 'PUMPFUN_BUY');
+    const isPumpFunSell = event.payload.actions?.some(action => action.type === 'PUMPFUN_SELL');
 
+    if (isPumpFunBuy || isPumpFunSell) {
+      mainAction = event.payload.actions?.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL');
+    }
+
+    const testRatio = 0.2;
 
     sendToBotManager({
       type: BOT_LOG_EVENT,
       payload: {
         botId: event.payload.botId,
         strategy: event.payload.strategy,
-        info: `Solana event received: ${txSignature}`,
-        actions: event.payload.actions,
-        data: {
-          tx: event.payload,
-        }
+        info: mainAction?.description,
+        data: event.payload
       }
     });
 
@@ -157,14 +172,12 @@ const sendToBotManager = (message: BotMessage) => {
         handleSolanaEvent({
           type: SOLANA_TX_EVENT_FOR_BOT,
           payload: {
-            ...payload,
-            actions: payload.actions?.map(action => ({
-              type: action.type,
-              description: action.description,
-              rawInfo: action.rawInfo,
-            })),
+            tx: payload.tx!,
+            actions: payload.actions || [],
+            botId: payload.botId,
+            strategy: payload.strategy || 'default'
           }
-        } as SolanaTxEventForBot);
+        });
         break;
       default:
         console.log(`Unknown message message.type: ${type}`);

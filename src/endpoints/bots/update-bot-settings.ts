@@ -1,10 +1,10 @@
 import { Router, Request, Response } from "express";
 import { AURORA_VERTEX_API_KEY } from "../../constants";
 import { updateBotSettings } from "../../utils/bots";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+
 export function setupUpdateBotSettingsRoute(router: Router) {
   router.post('/update-bot-settings', async (req: Request, res: Response) => {
-    const { botId, priorityFee: priorityFeeInSol, buyRatio, apiKey, ejectWalletAddress } = req.body;
+    const { botId, apiKey, ejectWalletAddress } = req.body;
 
     if (apiKey !== AURORA_VERTEX_API_KEY) {
       return res.status(401).json({
@@ -12,15 +12,9 @@ export function setupUpdateBotSettingsRoute(router: Router) {
         status: 401,
       });
     }
-    const priorityFeeInSolNumber = Number(priorityFeeInSol);
-    const priorityFeeInLamports = priorityFeeInSolNumber * LAMPORTS_PER_SOL;
 
-    const botSettings = {
-      priorityFeeInLamports,
-      buyRatio,
+    await updateBotSettings(botId, {
       ejectWalletAddress,
-    }
-
-    await updateBotSettings(botId, botSettings, res);
+    }, res);
   });
 }

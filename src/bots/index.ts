@@ -15,8 +15,8 @@ export const setupBotManager = () => {
 
       switch (type) {
         case BOT_SPAWN: {
-          const { botId, strategy } = payload;
-          spawnBot(botId, strategy);
+          const { botId, strategy, userId } = payload;
+          spawnBot(botId, strategy, userId);
           break;
         }
         case BOT_STOP: {

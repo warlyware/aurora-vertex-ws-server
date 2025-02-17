@@ -34,7 +34,7 @@ const storeTransaction = async (signature: string, transaction: any) => {
   await redis.set(`tx:${signature}`, JSON.stringify(transaction));
 };
 
-export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
+export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
   if (heliusWs) return;
 
   const wsInstance = new WebSocket(
@@ -50,7 +50,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     heliusWs = null;
   };
 
-  const reconnect = (clients: Set<WebSocket>) => {
+  const reconnect = (clients: Map<string, WebSocket>) => {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnect attempts reached. Stopping.');
       return;
@@ -72,7 +72,7 @@ export const setupSolanaWatchers = (clients: Set<WebSocket>) => {
     }, delay);
   };
 
-  const checkConnectionHealth = async (clients: Set<WebSocket>) => {
+  const checkConnectionHealth = async (clients: Map<string, WebSocket>) => {
     const MAX_SILENCE_DURATION = 10000;
     const threshold = MAX_SILENCE_DURATION;
 

@@ -13,15 +13,27 @@ import { initRedis } from "./redis";
 
 const { wss } = setupApp();
 
-export const clients = new Set<WebSocket>();
+export const clients = new Map<string, WebSocket>();
 
-export const sendToConnectedClients = (message: AuroraMessage) => {
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
+export const sendToConnectedClients = (message: AuroraMessage, userId?: string) => {
+  if (userId) {
+    const client = clients.get(userId);
+    if (client?.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(message));
+    }
+  } else {
+    for (const client of clients.values()) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
+      }
     }
   }
 };
+
+export const getWsClientByUserId = (userId: string) => {
+  return clients.get(userId);
+};
+
 const botManager = setupBotManager();
 let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;
 
@@ -35,6 +47,7 @@ initRedis();
 wss.on("connection", async function (ws: WebSocket, req) {
   const parsedUrl = parse(req.url || '', true);
   const authKey = parsedUrl?.query?.auth;
+  const userId = parsedUrl?.query?.userId as string;
 
   if (!authKey || authKey !== process.env.AURORA_VERTEX_API_KEY) {
     console.error("Client not authorized");
@@ -42,7 +55,13 @@ wss.on("connection", async function (ws: WebSocket, req) {
     return;
   }
 
-  clients.add(ws);
+  if (!userId) {
+    console.error("No userId provided");
+    ws.close();
+    return;
+  }
+
+  clients.set(userId, ws);
 
   const id = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
@@ -56,7 +75,7 @@ wss.on("connection", async function (ws: WebSocket, req) {
   ws.on("close", async function () {
     console.log("stopping client interval");
     clearInterval(id);
-    clients.delete(ws);
+    clients.delete(userId);
   });
 });
 

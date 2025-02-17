@@ -6,8 +6,6 @@ export const UPDATE_BOT_SETTINGS = gql`
       id
       createdAt
       updatedAt
-      buyRatio
-      priorityFeeInLamports
       ejectWallet {
         address
       }

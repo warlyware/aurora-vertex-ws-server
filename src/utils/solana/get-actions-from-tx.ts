@@ -90,43 +90,35 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
   );
 
   if (mainPumpfunIx || innerPumpfunSet) {
-    // Get all relevant instructions (main + inner) for this action
-    const relevantInstructions = innerPumpfunSet?.instructions || mainInstructions;
+    const isSell = logs.some(log => log.includes('Instruction: Sell'));
+    const isBuy = logs.some(log => log.includes('Instruction: Buy'));
 
-    // Find the transfers
-    const solTransfer = relevantInstructions.find(ix =>
-      ix.programId === '11111111111111111111111111111111' &&
-      ix.parsed?.type === 'transfer' &&
-      ix.parsed.info.destination !== PUMPFUN_FEE_COLLECTION_ACCOUNT
-    );
-
-    const tokenTransfer = relevantInstructions.find(ix =>
-      ix.programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' &&
-      ix.parsed?.type === 'transfer'
-    );
-
-    if (solTransfer && tokenTransfer) {
+    if (isSell || isBuy) {
       const trader = accountKeys[0].pubkey;
-      const solAmount = solTransfer?.parsed?.info?.lamports / LAMPORTS_PER_SOL;
-      const tokenAmount = Number(tokenTransfer?.parsed?.info?.amount);
-      const tokenMint = result.transaction.meta?.postTokenBalances?.[0]?.mint;
+      const preBalance = result.transaction.meta?.preBalances[0] || 0;
+      const postBalance = result.transaction.meta?.postBalances[0] || 0;
+      const solChange = (postBalance - preBalance) / LAMPORTS_PER_SOL;
 
-      // Determine if it's a buy or sell based on the SOL flow
-      const isBuy = solTransfer.parsed?.info?.source === trader;
+      // Find token transfer in inner instructions
+      const tokenTransfer = innerPumpfunSet?.instructions.find(ix =>
+        ix.programId === TOKEN_PROGRAM_ID &&
+        ix.parsed?.type === 'transfer'
+      );
+
+      const tokenAmount = Number(tokenTransfer?.parsed?.info?.amount);
+      const tokenMint = result.transaction.meta?.preTokenBalances?.[0]?.mint;
 
       actions.push({
         type: isBuy ? 'PUMPFUN_BUY' : 'PUMPFUN_SELL',
         source: trader,
         destination: trader,
-        solAmount: solAmount,
-        tokenAmount: tokenAmount,
-        tokenMint: tokenMint,
-        description: `${getAbbreviatedAddress(trader)} ${isBuy ? 'bought' : 'sold'} ${tokenAmount} ${getAbbreviatedAddress(tokenMint)} ${isBuy ? 'for' : 'and received'} ${solAmount} SOL`,
-        rawInfo: {
-          solTransfer,
-          tokenTransfer,
-          postTokenBalances: result.transaction.meta?.postTokenBalances
-        }
+        solAmount: Math.abs(solChange),
+        tokenAmount,
+        tokenMint,
+        description: isBuy
+          ? `${getAbbreviatedAddress(trader)} bought ${tokenAmount} ${getAbbreviatedAddress(tokenMint)} for ${Math.abs(solChange)} SOL`
+          : `${getAbbreviatedAddress(trader)} sold ${tokenAmount} ${getAbbreviatedAddress(tokenMint)} for ${Math.abs(solChange)} SOL`,
+        rawInfo: { tokenTransfer, balanceChange: solChange }
       });
     }
   }

@@ -8,8 +8,6 @@ import { GET_WALLET_BY_ADDRESS } from "../../graphql/queries/get-wallet-by-addre
 import { isValidPublicKey } from "../solana";
 import { Response } from "express";
 type BotSettings = {
-  priorityFeeInLamports?: number;
-  buyRatio?: number;
   ejectWalletAddress?: string;
   ejectWalletId?: string;
 }
@@ -83,7 +81,6 @@ export const updateBotSettings = async (botId: string, botSettings: BotSettings,
       id: string;
       createdAt: string;
       updatedAt: string;
-      buyRatio: number;
       ejectWallet: {
         address: string;
       }

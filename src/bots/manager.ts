@@ -6,6 +6,8 @@ import { messageTypes } from '../types/messages';
 import { logBotEvent } from '../logging';
 import { SolanaTxEvent } from '../events/bridge';
 import { getBotById } from '../utils/bots';
+import { WebSocket } from 'ws';
+import { getWsClientByUserId } from '..';
 
 const {
   BOT_SPAWN,
@@ -23,8 +25,7 @@ export type BotInfo = {
   name: string;
   createdAt: string;
   updatedAt: string;
-  buyRatio: number;
-  priorityFeeInLamports: number;
+  userId: string;
   ejectWallet: {
     id: string;
     address: string;
@@ -57,7 +58,7 @@ const sendToBotProcess = ({
   });
 };
 
-export const spawnBot = async (botId: string, strategy: string) => {
+export const spawnBot = async (botId: string, strategy: string, userId: string) => {
   console.log(`Spawning bot ${botId} with strategy ${strategy}`);
 
   if (bots.has(botId)) {
@@ -88,7 +89,14 @@ export const spawnBot = async (botId: string, strategy: string) => {
 
   botProcess.on('message', (message: BotMessage) => {
     const { type, payload } = message;
-    if (!payload) return;
+    const bot = bots.get(payload.botId);
+
+    if (!bot) return;
+
+    const wsClient = getWsClientByUserId(bot.userId);
+    if (wsClient) {
+      wsClient.send(JSON.stringify({ type, payload }));
+    }
 
     switch (type) {
       case BOT_STATUS_UPDATE:
@@ -147,7 +155,19 @@ export const spawnBot = async (botId: string, strategy: string) => {
   bots.set(botId, {
     ...botInfo,
     process: botProcess,
+    userId,
   });
+
+  const wsClient = getWsClientByUserId(botInfo.user.id);
+  if (wsClient) {
+    wsClient.send(JSON.stringify({
+      type: BOT_STATUS_UPDATE,
+      payload: {
+        botId,
+        status: 'spawned'
+      }
+    }));
+  }
 
   logBotEvent({
     botId,

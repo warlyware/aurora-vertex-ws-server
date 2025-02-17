@@ -7,8 +7,6 @@ query GET_BOTS_BY_USER_ID($userId: uuid) {
     name
     createdAt
     updatedAt
-    buyRatio
-    priorityFeeInLamports
     ejectWallet {
       id  
       address

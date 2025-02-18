@@ -4,6 +4,7 @@ import { ADD_WALLET } from "../../graphql/mutations/add-wallet";
 import { UPDATE_BOT_SETTINGS } from "../../graphql/mutations/update-bot-settings";
 import { GET_BOT_BY_ID } from "../../graphql/queries/get-bot-by-id";
 import { GET_BOTS_BY_USER_ID } from "../../graphql/queries/get-bots-by-user-id";
+import { GET_TRADER_STRATEGY_UNIONS_BY_BOT_ID } from "../../graphql/queries/get-trader-strategy-unions-by-bot-id";
 import { GET_WALLET_BY_ADDRESS } from "../../graphql/queries/get-wallet-by-address";
 import { isValidPublicKey } from "../solana";
 import { Response } from "express";
@@ -12,6 +13,30 @@ type BotSettings = {
   ejectWalletId?: string;
 }
 
+export type BotStrategy = {
+  id: string;
+  name?: string;
+  maxBuyAmount?: number;
+  stopLossPercentage?: number;
+  takeProfitPercentage?: number;
+  shouldCopyBuys: boolean;
+  shouldCopySells: boolean;
+  shouldEjectOnBuy: boolean;
+  shouldEjectOnCurve: boolean;
+  shouldSellOnCurve: boolean;
+  traderId: string;
+  priorityFee: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+
+export type TraderStrategyUnion = {
+  id: string;
+  traderId: string;
+  tradeStrategyId: string;
+  strategy: BotStrategy;
+}
 
 export const addWallet = async (botId: string, address: string) => {
   const client = await getGqlClient();
@@ -132,4 +157,17 @@ export const getBotById = async (botId: string) => {
   });
 
   return bots_by_pk;
+}
+
+export const getActiveStrategyByBotId = async (botId: string) => {
+  const client = await getGqlClient();
+
+  const { tradeStrategies }: { tradeStrategies: TraderStrategyUnion[] } = await client.request({
+    document: GET_TRADER_STRATEGY_UNIONS_BY_BOT_ID,
+    variables: {
+      botId,
+    },
+  });
+
+  return tradeStrategies[0]?.strategy;
 }

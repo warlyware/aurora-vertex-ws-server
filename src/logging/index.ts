@@ -12,7 +12,6 @@ export type BotLogEvent = {
   type: typeof BOT_LOG_EVENT;
   payload: {
     botId: string;
-    strategy: string;
     info: string;
     data?: any;
   };

@@ -5,8 +5,7 @@ import { BotMessage } from './bot';
 import { messageTypes } from '../types/messages';
 import { logBotEvent } from '../logging';
 import { SolanaTxEvent } from '../events/bridge';
-import { getBotById } from '../utils/bots';
-import { WebSocket } from 'ws';
+import { BotStrategy, getBotById } from '../utils/bots';
 import { getWsClientByUserId } from '..';
 
 const {
@@ -40,6 +39,9 @@ export type BotInfo = {
   user: {
     id: string;
   };
+  activeTraderStrategyUnion?: {
+    strategy: BotStrategy;
+  };
 };
 
 export type Bot = {
@@ -58,8 +60,8 @@ const sendToBotProcess = ({
   });
 };
 
-export const spawnBot = async (botId: string, strategy: string, userId: string) => {
-  console.log(`Spawning bot ${botId} with strategy ${strategy}`);
+export const spawnBot = async (botId: string, userId: string) => {
+  console.log(`Spawning bot ${botId} with strategy`);
 
   if (bots.has(botId)) {
     console.log(`Bot ${botId} already exists. Skipping spawn.`);
@@ -67,6 +69,9 @@ export const spawnBot = async (botId: string, strategy: string, userId: string) 
   }
 
   const botInfo = await getBotById(botId);
+  const strategy = botInfo.activeTraderStrategyUnion?.strategy;
+
+  console.log({ strategy: botInfo.activeTraderStrategyUnion?.strategy });
 
   if (!botInfo) {
     console.log(`Bot ${botId} not found. Skipping spawn.`);
@@ -83,7 +88,6 @@ export const spawnBot = async (botId: string, strategy: string, userId: string) 
     payload: {
       botId,
       keypair,
-      strategy,
     }
   }, botProcess);
 
@@ -145,7 +149,6 @@ export const spawnBot = async (botId: string, strategy: string, userId: string) 
 
     logBotEvent({
       botId,
-      strategy,
       info: `${botInfo.name} quit: ${exitMessage}`
     });
 
@@ -171,8 +174,11 @@ export const spawnBot = async (botId: string, strategy: string, userId: string) 
 
   logBotEvent({
     botId,
-    strategy,
-    info: `${botInfo.name} spawned with strategy ${strategy}`,
+    info: `
+${botInfo.name} spawned
+
+${JSON.stringify(strategy, null, 2)}
+    `,
   });
 };
 
@@ -189,7 +195,6 @@ export const stopBot = (botId: string) => {
   } else {
     logBotEvent({
       botId,
-      strategy: 'N/A',
       info: `Bot ${botId} not found`
     });
   }

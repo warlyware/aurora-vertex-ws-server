@@ -119,7 +119,7 @@ const sendToBotManager = (message: BotMessage) => {
     }
   };
 
-  const startBot = (botId: string, strategy: string, keypair: string) => {
+  const startBot = (botId: string) => {
     sendToBotManager({
       type: BOT_STATUS_UPDATE,
       payload: {
@@ -145,12 +145,12 @@ const sendToBotManager = (message: BotMessage) => {
 
     switch (type) {
       case BOT_SPAWN:
-        if (!strategy || !keypair) {
+        if (!keypair) {
           console.error(`Missing required parameters for starting bot`);
           return;
         }
 
-        startBot(botId, strategy, keypair);
+        startBot(botId);
         break;
       case BOT_STOP:
         console.log(`Stopping bot ${botId}`);

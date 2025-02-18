@@ -25,6 +25,14 @@ query GET_BOT_BY_ID($botId: uuid!) {
       id
       traderId
       tradeStrategyId
+      trader {
+        id
+        name
+        wallet {
+          id
+          address
+        }
+      }
       strategy {
         id
         name

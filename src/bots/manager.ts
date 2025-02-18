@@ -18,6 +18,15 @@ const {
   SOLANA_TX_EVENT_FOR_BOT,
 } = messageTypes;
 
+export type Trader = {
+  id: string;
+  name: string;
+  wallet: {
+    id: string;
+    address: string;
+  }
+}
+
 export type BotInfo = {
   botId: string;
   strategy: string;
@@ -41,6 +50,7 @@ export type BotInfo = {
   };
   activeTraderStrategyUnion?: {
     strategy: BotStrategy;
+    trader: Trader;
   };
 };
 

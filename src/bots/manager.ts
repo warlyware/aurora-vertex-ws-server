@@ -28,7 +28,7 @@ export type Trader = {
 }
 
 export type BotInfo = {
-  botId: string;
+  id: string;
   strategy: string;
   name: string;
   createdAt: string;
@@ -79,9 +79,9 @@ export const spawnBot = async (botId: string, userId: string) => {
   }
 
   const botInfo = await getBotById(botId);
-  const strategy = botInfo.activeTraderStrategyUnion?.strategy;
+  const strategy = botInfo?.activeTraderStrategyUnion?.strategy;
 
-  console.log({ strategy: botInfo.activeTraderStrategyUnion?.strategy });
+  console.log({ strategy: botInfo?.activeTraderStrategyUnion?.strategy });
 
   if (!botInfo) {
     console.log(`Bot ${botId} not found. Skipping spawn.`);

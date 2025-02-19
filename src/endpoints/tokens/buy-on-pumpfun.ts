@@ -6,7 +6,7 @@ import { PumpFunSDK } from "pumpdotfun-sdk";
 import { getPumpFunSdk, getSPLBalance, printSPLBalance } from "../../utils/solana";
 import { sendSplTokens } from "../../utils/tokens";
 
-const SLIPPAGE_BASIS_POINTS = 500n;
+const SLIPPAGE_BASIS_POINTS = 300n;
 
 const calculatePriorityFees = (priorityFeeInLamports: number) => {
   const PUMPFUN_BUY_UNIT_LIMIT = 180_000;

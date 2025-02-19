@@ -21,6 +21,7 @@ export type TxAction = {
   tokenMint?: string;
   description: string;
   rawInfo?: any;
+  solChange?: number;
 }
 
 const handleRaydiumSwap = (result: any): TxAction => {
@@ -113,6 +114,7 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
         source: trader,
         destination: trader,
         solAmount: Math.abs(solChange),
+        solChange,
         tokenAmount,
         tokenMint,
         description: isBuy

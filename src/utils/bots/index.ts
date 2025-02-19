@@ -1,4 +1,4 @@
-import { Bot } from "../../bots/manager";
+import { Bot, BotInfo } from "../../bots/manager";
 import { getGqlClient } from "../../graphql/client";
 import { ADD_WALLET } from "../../graphql/mutations/add-wallet";
 import { UPDATE_BOT_SETTINGS } from "../../graphql/mutations/update-bot-settings";
@@ -28,6 +28,8 @@ export type BotStrategy = {
   priorityFee: number;
   createdAt: string;
   updatedAt: string;
+  slippagePercentage: number;
+  intendedTradeRatio: number;
 }
 
 
@@ -149,7 +151,7 @@ export const getBotsByUserId = async (userId: string) => {
 export const getBotById = async (botId: string) => {
   const client = await getGqlClient();
 
-  const { bots_by_pk }: { bots_by_pk: Bot } = await client.request({
+  const { bots_by_pk }: { bots_by_pk: BotInfo } = await client.request({
     document: GET_BOT_BY_ID,
     variables: {
       botId,
@@ -159,15 +161,24 @@ export const getBotById = async (botId: string) => {
   return bots_by_pk;
 }
 
-export const getActiveStrategyByBotId = async (botId: string) => {
-  const client = await getGqlClient();
+export const getActiveStrategy = async (botIdOrInfo: string | BotInfo) => {
+  let bot = null;
+  if (typeof botIdOrInfo === 'string') {
+    bot = await getBotById(botIdOrInfo);
+  } else {
+    bot = botIdOrInfo;
+  }
 
-  const { tradeStrategies }: { tradeStrategies: TraderStrategyUnion[] } = await client.request({
-    document: GET_TRADER_STRATEGY_UNIONS_BY_BOT_ID,
-    variables: {
-      botId,
-    },
-  });
+  return bot?.activeTraderStrategyUnion?.strategy || null;
+}
 
-  return tradeStrategies[0]?.strategy;
+export const getTargetTraderAddress = async (botIdOrInfo: string | BotInfo) => {
+  let bot = null;
+  if (typeof botIdOrInfo === 'string') {
+    bot = await getBotById(botIdOrInfo);
+  } else {
+    bot = botIdOrInfo;
+  }
+
+  return bot?.activeTraderStrategyUnion?.trader?.wallet?.address || null;
 }

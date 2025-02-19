@@ -27,7 +27,23 @@ export type BotMessage = {
     data?: any;
     actions?: TxAction[];
     tx?: SolanaTxNotificationFromHeliusWithTimestamp | undefined;
+    profit?: number;
   }
+}
+
+type TokenSession = {
+  mint: string;
+  effectiveRatio: number;
+  lastBuyPrice?: number;
+  totalBought: number;
+  totalSold: number;
+  trades: {
+    type: 'BUY' | 'SELL';
+    price: number;
+    amount: number;
+    timestamp: number;
+  }[];
+  profit: number;
 }
 
 const getShouldExecuteTrade = (event: {
@@ -36,7 +52,7 @@ const getShouldExecuteTrade = (event: {
 }, session: {
   bot: BotInfo | null;
   strategy: BotStrategy | null;
-  tokenEffectiveRatios: { [tokenMint: string]: number };
+  tokens: { [tokenMint: string]: TokenSession };
 }) => {
   const {
     id,
@@ -55,7 +71,6 @@ const getShouldExecuteTrade = (event: {
   } = session.strategy || {};
 
   const txSignature = event.tx?.params?.result?.signature;
-  console.log('handleSolanaEvent', event.tx);
 
   let mainAction: TxAction | undefined;
   const isPumpFunBuy = event.actions?.some(action => action.type === 'PUMPFUN_BUY');
@@ -63,6 +78,11 @@ const getShouldExecuteTrade = (event: {
 
   if (isPumpFunBuy || isPumpFunSell) {
     mainAction = event.actions?.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL');
+  }
+
+  if (!mainAction) {
+    console.error('No trade action found');
+    return false;
   }
 
   if (!session.bot?.id) {
@@ -82,9 +102,29 @@ const getShouldExecuteTrade = (event: {
     amountToBuy = Math.min(intendedTradeAmount, maxBuyAmount ?? 0);
 
     effectiveTradeRatio = amountToBuy / originalTradeAmount;
-    session.tokenEffectiveRatios = session.tokenEffectiveRatios || {};
-    session.tokenEffectiveRatios[mainAction.tokenMint] = effectiveTradeRatio;
+
+    if (!session.tokens[mainAction.tokenMint]) {
+      session.tokens[mainAction.tokenMint] = {
+        mint: mainAction.tokenMint,
+        effectiveRatio: effectiveTradeRatio,
+        totalBought: 0,
+        totalSold: 0,
+        trades: [],
+        profit: 0
+      };
+    } else {
+      session.tokens[mainAction.tokenMint].effectiveRatio = effectiveTradeRatio;
+    }
   }
+
+  console.log('mainAction', mainAction);
+
+  if (!mainAction?.tokenMint) {
+    console.error('No token mint found');
+    return false;
+  }
+
+  console.log('total bought', session.tokens[mainAction.tokenMint]?.totalBought);
 
   switch (mainAction?.type) {
     case 'PUMPFUN_BUY':
@@ -97,6 +137,8 @@ const getShouldExecuteTrade = (event: {
     case 'PUMPFUN_SELL':
       if (!shouldCopySells) {
         shouldExecuteTrade = false;
+      } else if (!session.tokens[mainAction.tokenMint]?.totalBought) {
+        shouldExecuteTrade = false;
       } else {
         shouldExecuteTrade = true;
       }
@@ -106,29 +148,32 @@ const getShouldExecuteTrade = (event: {
       break;
   }
 
-  info = `
-I am bot ${session.bot?.name} and I am considering a ${mainAction?.type} copytrade.
-The original trade is for ${mainAction?.tokenAmount} ${mainAction?.tokenMint} costing ${mainAction?.solChange} SOL.
-The current maxBuyAmount is ${maxBuyAmount} SOL, therefore I will only buy up to ${maxBuyAmount} SOL.
-The current stopLossPercentage is ${stopLossPercentage}, therefore I will sell if the price drops below ${stopLossPercentage}%.
-The current takeProfitPercentage is ${takeProfitPercentage}, therefore I will sell if the price rises above ${takeProfitPercentage}%.
-The current intendedTradeRatio is ${intendedTradeRatio}, therefore I will only buy up to ${amountToBuy} SOL.
-  `
+  //   if (shouldExecuteTrade) {
+  //     info = `
+  // I am bot ${session.bot?.name} and I am considering a ${mainAction?.type} copytrade.
+  // The original trade is for ${mainAction?.tokenAmount} ${mainAction?.tokenMint} costing ${mainAction?.solChange} SOL.
+  // The current intendedTradeRatio is ${intendedTradeRatio}, therefore I will only buy up to ${amountToBuy} SOL.
+  //   `
+  //   } else {
+  //     info = `
+  // I am bot ${session.bot?.name} and I SKIPPING THIS ${mainAction?.type} copytrade.
+  // `
+  //   }
 
-  sendToBotManager({
-    type: BOT_LOG_EVENT,
-    payload: {
-      botId: session.bot?.id,
-      strategy: session.strategy?.name,
-      info,
-      data: {
-        txSignature,
-        isPumpFunBuy,
-        isPumpFunSell,
-        mainAction,
-      }
-    }
-  });
+  // sendToBotManager({
+  //   type: BOT_LOG_EVENT,
+  //   payload: {
+  //     botId: session.bot?.id,
+  //     strategy: session.strategy?.name,
+  //     info,
+  //     data: {
+  //       txSignature,
+  //       isPumpFunBuy,
+  //       isPumpFunSell,
+  //       mainAction,
+  //     }
+  //   }
+  // });
 
   return shouldExecuteTrade;
 }
@@ -159,11 +204,15 @@ const sendToBotManager = (message: BotMessage) => {
     strategy: BotStrategy | null;
     targetTraderAddress: string | null;
     tokenEffectiveRatios: { [tokenMint: string]: number };
+    tokens: { [tokenMint: string]: TokenSession };
+    profit: number;
   } = {
     bot: null,
     strategy: null,
     targetTraderAddress: null,
     tokenEffectiveRatios: {},
+    tokens: {},
+    profit: 0
   };
 
   const updateStats = (tradeDetails: any) => {
@@ -185,31 +234,65 @@ const sendToBotManager = (message: BotMessage) => {
     bot: BotInfo | null;
     strategy: BotStrategy | null;
     targetTraderAddress: string | null;
-    tokenEffectiveRatios: { [tokenMint: string]: number };
+    tokens: { [tokenMint: string]: TokenSession };
+    profit: number;
   }) => {
-    // sendToBotManager({
-    //   type: BOT_TRADE_NOTIFICATION,
-    //   payload: {
-    //     botId,
-    //     timestamp: Date.now(),
-    //     price: Math.random() * 100,
-    //     quantity: Math.random() * 10,
-    //   },
-    // });
-    sendToBotManager({
-      type: BOT_LOG_EVENT,
-      payload: {
-        botId: payload.botId,
-        info: `!!! Executing copytrade against ${payload.tx.params.result.signature} !!!`,
-      },
-    });
+    const mainAction = payload.actions?.find(action =>
+      action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL'
+    );
 
+    if (!mainAction?.tokenMint || !mainAction.solChange || !mainAction.tokenAmount) {
+      console.error('Missing required trade information');
+      return;
+    }
 
+    const tradeType = mainAction.type === 'PUMPFUN_BUY' ? 'BUY' : 'SELL';
+    const price = Math.abs(mainAction.solChange / mainAction.tokenAmount);
+    const amount = Math.abs(mainAction.tokenAmount);
+
+    const tokenSession = session.tokens[mainAction.tokenMint];
+    if (tokenSession) {
+      if (tradeType === 'BUY') {
+        tokenSession.lastBuyPrice = price;
+        tokenSession.totalBought += amount;
+      } else {
+        tokenSession.totalSold += amount;
+      }
+
+      tokenSession.trades.push({
+        type: tradeType,
+        price,
+        amount,
+        timestamp: Date.now()
+      });
+
+      const profit = tokenSession.lastBuyPrice
+        ? ((price - tokenSession.lastBuyPrice) / tokenSession.lastBuyPrice) * 100
+        : 0;
+
+      let info = `EXECUTING ${tradeType}`;
+
+      if (profit !== 0) {
+        session.profit += profit;
+        info += ` || Est. profit: ${profit.toFixed(2)}% ${profit > 0 ? '🟢' : '🔴'}`;
+        info += ` || Total: ${session.profit.toFixed(2)}%`;
+      }
+
+      sendToBotManager({
+        type: BOT_LOG_EVENT,
+        payload: {
+          botId: payload.botId,
+          info,
+        },
+      });
+    }
 
     updateStats({
       timestamp: Date.now(),
-      price: Math.random() * 100,
-      quantity: Math.random() * 10,
+      price,
+      quantity: amount,
+      type: tradeType,
+      tokenMint: mainAction.tokenMint
     });
   };
 
@@ -227,11 +310,19 @@ const sendToBotManager = (message: BotMessage) => {
     let info: string | undefined;
     const traderAddress = event.payload.actions.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL')?.source;
 
-    if (session.targetTraderAddress && traderAddress !== session.targetTraderAddress) {
-      info = `Skipping trade, trader address ${traderAddress} does not match target trader address ${session.targetTraderAddress}`;
-    }
+    console.log('handleSolanaEvent', {
+      traderAddress,
+      targetTraderAddress: session.targetTraderAddress,
+      actions: event.payload.actions
+    })
 
-    const shouldExecuteTrade = getShouldExecuteTrade(event.payload, session);
+    let shouldExecuteTrade = false;
+    if (traderAddress !== session.targetTraderAddress) {
+      console.log('Skipping trade, trader address does not match target trader address');
+      shouldExecuteTrade = false;
+    } else {
+      shouldExecuteTrade = getShouldExecuteTrade(event.payload, session);
+    }
 
     if (shouldExecuteTrade) {
       executeTradeLogic(event.payload, session);
@@ -261,6 +352,7 @@ const sendToBotManager = (message: BotMessage) => {
         type: BOT_STATUS_UPDATE,
         payload: {
           ...status,
+          profit: session.profit,
           botId,
         },
       });
@@ -288,6 +380,7 @@ const sendToBotManager = (message: BotMessage) => {
           type: BOT_STATUS_UPDATE,
           payload: {
             ...status,
+            profit: session.profit,
             isActive: false,
             info: `Bot stopped successfully`,
             botId,

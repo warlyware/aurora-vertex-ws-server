@@ -125,7 +125,6 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
     }
   }
 
-  // Process token transfers
   mainInstructions.forEach(ix => {
     if (ix.programId === TOKEN_PROGRAM_ID && ix.parsed?.type === 'transfer') {
       const { source, destination, amount, authority } = ix.parsed.info;

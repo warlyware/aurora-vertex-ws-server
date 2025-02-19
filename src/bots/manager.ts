@@ -71,7 +71,7 @@ const sendToBotProcess = ({
 };
 
 export const spawnBot = async (botId: string, userId: string) => {
-  console.log(`Spawning bot ${botId} with strategy`);
+  console.log(`Spawning bot ${botId}`);
 
   if (bots.has(botId)) {
     console.log(`Bot ${botId} already exists. Skipping spawn.`);
@@ -80,8 +80,6 @@ export const spawnBot = async (botId: string, userId: string) => {
 
   const botInfo = await getBotById(botId);
   const strategy = botInfo?.activeTraderStrategyUnion?.strategy;
-
-  console.log({ strategy: botInfo?.activeTraderStrategyUnion?.strategy });
 
   if (!botInfo) {
     console.log(`Bot ${botId} not found. Skipping spawn.`);

@@ -25,7 +25,10 @@ let isReconnecting = false;
 const accountsToWatch = [
   'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj', // Euris
   '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
-  '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf'
+  '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf',
+  'CotYDUwu4c3a73Hya3Tjm7u9gzmZweoKip2kQyuyhAEF',
+  'HLLXwFZN9CHTct5K4YpucZ137aji27EkkJ1ZaZE7JVmk',
+  '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo'
 ];
 
 

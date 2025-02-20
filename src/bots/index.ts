@@ -25,7 +25,7 @@ export const setupBotManager = () => {
           break;
         }
         default:
-          console.warn("Unhandled message type:", type);
+          // console.warn("Unhandled message type:", type);
           break;
       }
     },

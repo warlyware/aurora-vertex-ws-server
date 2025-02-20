@@ -145,7 +145,7 @@ export const spawnBot = async (botId: string, userId: string) => {
         });
 
       default:
-        console.warn(`Unhandled message type: ${type}`);
+        // console.warn(`Unhandled message type: ${type}`);
         break;
     }
   });

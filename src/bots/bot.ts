@@ -3,6 +3,7 @@ import { TxAction } from "../utils/solana/get-actions-from-tx";
 import { SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
 import { BotStrategy, getActiveStrategy, getBotById, getTargetTraderAddress } from "../utils/bots";
 import { BotInfo } from "./manager";
+import dayjs from "dayjs";
 
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
@@ -117,14 +118,10 @@ const getShouldExecuteTrade = (event: {
     }
   }
 
-  console.log('mainAction', mainAction);
-
   if (!mainAction?.tokenMint) {
     console.error('No token mint found');
     return false;
   }
-
-  console.log('total bought', session.tokens[mainAction.tokenMint]?.totalBought);
 
   switch (mainAction?.type) {
     case 'PUMPFUN_BUY':
@@ -310,7 +307,8 @@ const sendToBotManager = (message: BotMessage) => {
     let info: string | undefined;
     const traderAddress = event.payload.actions.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL')?.source;
 
-    console.log('handleSolanaEvent', {
+    console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} handleSolanaEvent`, {
+      tx: event.payload.tx.params.result.signature,
       traderAddress,
       targetTraderAddress: session.targetTraderAddress,
       actions: event.payload.actions
@@ -318,7 +316,7 @@ const sendToBotManager = (message: BotMessage) => {
 
     let shouldExecuteTrade = false;
     if (traderAddress !== session.targetTraderAddress) {
-      console.log('Skipping trade, trader address does not match target trader address');
+      console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} Skipping trade ${event.payload.tx.params.result.signature}`);
       shouldExecuteTrade = false;
     } else {
       shouldExecuteTrade = getShouldExecuteTrade(event.payload, session);

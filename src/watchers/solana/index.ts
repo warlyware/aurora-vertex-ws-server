@@ -6,7 +6,7 @@ import { logServerEvent } from '../../logging';
 import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimestamp } from '../../types/solana';
 import { eventBus } from '../../events/bus';
 import { sendToConnectedClients } from '../..';
-
+import dayjs from 'dayjs';
 const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SERVER_LOG_EVENT, SOLANA_TX_EVENT } = messageTypes;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -23,13 +23,17 @@ let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
 const accountsToWatch = [
-  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj', // Euris
+  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
   '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
   '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf',
   'CotYDUwu4c3a73Hya3Tjm7u9gzmZweoKip2kQyuyhAEF',
   'HLLXwFZN9CHTct5K4YpucZ137aji27EkkJ1ZaZE7JVmk',
   '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo'
 ];
+
+const logToTerminal = (message: string) => {
+  console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} ${message}`);
+};
 
 
 const storeTransaction = async (signature: string, transaction: any) => {
@@ -55,17 +59,17 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
 
   const reconnect = (clients: Map<string, WebSocket>) => {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnect attempts reached. Stopping.');
+      logToTerminal('Max reconnect attempts reached. Stopping.');
       return;
     }
     if (isReconnecting) {
-      console.warn("Primary WebSocket already reconnecting, skipping...");
+      logToTerminal(`Primary WebSocket already reconnecting, skipping...`);
       return;
     }
     isReconnecting = true;
     const delay = Math.min(5000 * (2 ** reconnectAttempts), 60000);
     reconnectAttempts++;
-    console.log(`Reconnecting Primary WebSocket in ${delay / 1000}s...`);
+    logToTerminal(`Reconnecting Primary WebSocket in ${delay / 1000}s...`);
     setTimeout(() => {
       closeWebSocket();
       setupSolanaWatchers(clients);
@@ -83,12 +87,14 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
 
     if (!firstHeartbeatReceived) {
       logServerEvent("Waiting for initial heartbeat...");
+      logToTerminal("Waiting for initial heartbeat...");
       return;
     }
 
     if (isReconnecting) {
       if (!(wsInstance as any).hasLoggedReconnect) {
         logServerEvent(`Skipping connection health check: Primary is already reconnecting`);
+        logToTerminal(`Skipping connection health check: Primary is already reconnecting`);
         (wsInstance as any).hasLoggedReconnect = true;
       }
       return;
@@ -99,6 +105,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     if (Date.now() - lastEffectiveTimestamp > threshold) {
       isReconnecting = true;
       logServerEvent('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
+      logToTerminal('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
       closeWebSocket();
       await new Promise((resolve) => setTimeout(resolve, 500));
       lastRestartTimestamp = Date.now();
@@ -108,6 +115,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
 
   wsInstance.on('open', () => {
     logServerEvent(`Helius Primary WebSocket is open`);
+    logToTerminal('Helius Primary WebSocket is open');
     isReconnecting = false;
     lastReceivedTxTimestamp = Date.now();
     lastHeartbeatTimestamp = Date.now();
@@ -133,7 +141,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       ]
     }));
     logServerEvent(`Subscribed to transaction notifications`);
-
+    logToTerminal('Subscribed to transaction notifications');
     wsInstance.send(JSON.stringify({
       "jsonrpc": "2.0",
       "id": `aurora-heartbeat-${Date.now()}`,
@@ -147,7 +155,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       ]
     }));
     logServerEvent(`Subscribed to heartbeat (clock sysvar)`);
-
+    logToTerminal('Subscribed to heartbeat (clock sysvar)');
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
         wsInstance.ping();
@@ -173,6 +181,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
 
       if (parsed?.params?.error) {
         logServerEvent(`ERROR: ${JSON.stringify(parsed.params.error)}`);
+        logToTerminal(`ERROR: ${JSON.stringify(parsed.params.error)}`);
         return;
       }
 
@@ -186,6 +195,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
         if (!firstHeartbeatReceived) {
           firstHeartbeatReceived = true;
           logServerEvent("Initial heartbeat received");
+          logToTerminal("Initial heartbeat received");
         }
         return;
       }
@@ -220,11 +230,12 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       });
 
     } catch (e) {
-      console.error('Failed to parse JSON:', e);
+      logToTerminal(`Failed to parse JSON: ${e}`);
     }
   });
 
   wsInstance.on('error', (err) => {
+    logToTerminal(`Primary WS Error: ${err}`);
     logServerEvent(`Primary WS Error: ${err}`);
     reconnect(clients);
   });
@@ -232,6 +243,8 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
   wsInstance.on('close', (code, reason) => {
     logServerEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);
     logServerEvent(`Code ${code}, Reason: ${reason}`);
+    logToTerminal(`Helius Primary WebSocket closed. Attempting to reconnect...`);
+    logToTerminal(`Code ${code}, Reason: ${reason}`);
     reconnect(clients);
   });
 

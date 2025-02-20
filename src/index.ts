@@ -10,30 +10,14 @@ import { setupSolanaWatchers } from "./watchers/solana";
 import { setupBotManager } from "./bots";
 import { AuroraMessage } from "./types/messages";
 import { initRedis } from "./redis";
+import dayjs from "dayjs";
 
 const { wss } = setupApp();
 
 export const clients = new Map<string, WebSocket>();
 
-export const sendToConnectedClients = (message: AuroraMessage, userId?: string) => {
-  if (userId) {
-    const client = clients.get(userId);
-    if (client?.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(message));
-    }
-  } else {
-    for (const client of clients.values()) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(message));
-      }
-    }
-  }
-};
-
-export const getWsClientByUserId = (userId: string) => {
-  return clients.get(userId);
-};
-
+// Initialize Solana watcher immediately on server start
+// const solanaWatchers = setupSolanaWatchers(clients);
 const botManager = setupBotManager();
 let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;
 
@@ -61,9 +45,11 @@ wss.on("connection", async function (ws: WebSocket, req) {
     return;
   }
 
+  // Move connection logging here
+  console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} Client connected: ${userId}`);
   clients.set(userId, ws);
 
-  const id = setupMemoryWatcher(ws);
+  const memoryWatcherId = setupMemoryWatcher(ws);
   setupFolderWatchers(ws);
   setupEventListeners(ws, botManager, solanaWatchers);
   if (solanaWatchers) {
@@ -73,10 +59,29 @@ wss.on("connection", async function (ws: WebSocket, req) {
   // await createTgClient(ws);
 
   ws.on("close", async function () {
-    console.log("stopping client interval");
-    clearInterval(id);
+    console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} Client disconnected: ${userId}`);
+    clearInterval(memoryWatcherId);
     clients.delete(userId);
   });
 });
+
+export const sendToConnectedClients = (message: AuroraMessage, userId?: string) => {
+  if (userId) {
+    const client = clients.get(userId);
+    if (client?.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(message));
+    }
+  } else {
+    for (const client of clients.values()) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
+      }
+    }
+  }
+};
+
+export const getWsClientByUserId = (userId: string) => {
+  return clients.get(userId);
+};
 
 

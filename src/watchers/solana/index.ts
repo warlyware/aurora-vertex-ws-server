@@ -41,6 +41,37 @@ const storeTransaction = async (signature: string, transaction: any) => {
   await redis.set(`tx:${signature}`, JSON.stringify(transaction));
 };
 
+type HeliusConnectionMetrics = {
+  lastConnectedAt: number | null;
+  disconnectionCount: number;
+  reconnectionAttempts: number;
+  totalUptime: number;
+  lastDisconnectReason?: string;
+  heartbeatStats: {
+    total: number;
+    missed: number;
+  };
+  transactionStats: {
+    total: number;
+    lastReceivedAt: number | null;
+  };
+}
+
+const metrics: HeliusConnectionMetrics = {
+  lastConnectedAt: null,
+  disconnectionCount: 0,
+  reconnectionAttempts: 0,
+  totalUptime: 0,
+  heartbeatStats: {
+    total: 0,
+    missed: 0,
+  },
+  transactionStats: {
+    total: 0,
+    lastReceivedAt: null,
+  }
+};
+
 export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
   if (heliusWs) return;
 
@@ -86,6 +117,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     const lastEffectiveTimestamp = Math.max(lastReceivedTxTimestamp, lastHeartbeatTimestamp);
 
     if (!firstHeartbeatReceived) {
+      metrics.heartbeatStats.missed++;
       logServerEvent("Waiting for initial heartbeat...");
       logToTerminal("Waiting for initial heartbeat...");
       return;
@@ -103,6 +135,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     }
 
     if (Date.now() - lastEffectiveTimestamp > threshold) {
+      metrics.heartbeatStats.missed++;
       isReconnecting = true;
       logServerEvent('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
       logToTerminal('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
@@ -114,6 +147,8 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
   };
 
   wsInstance.on('open', () => {
+    metrics.lastConnectedAt = Date.now();
+    metrics.reconnectionAttempts = 0;
     logServerEvent(`Helius Primary WebSocket is open`);
     logToTerminal('Helius Primary WebSocket is open');
     isReconnecting = false;
@@ -166,11 +201,23 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       await checkConnectionHealth(clients);
     }, 5000);
 
+    const metricsInterval = setInterval(() => {
+      if (metrics.lastConnectedAt) {
+        metrics.totalUptime = Date.now() - metrics.lastConnectedAt;
+      }
+      logServerEvent(`Helius Connection Metrics: ${JSON.stringify(metrics, null, 2)}`);
+    }, 60000);
+
     wsInstance.on('close', (code, reason) => {
       clearInterval(pingInterval);
       clearInterval(healthCheckInterval);
+      clearInterval(metricsInterval);
+      metrics.disconnectionCount++;
+      metrics.lastDisconnectReason = `Code ${code}, Reason: ${reason}`;
       logServerEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);
       logServerEvent(`Code ${code}, Reason: ${reason}`);
+      logToTerminal(`Helius Primary WebSocket closed. Attempting to reconnect...`);
+      logToTerminal(`Code ${code}, Reason: ${reason}`);
       reconnect(clients);
     });
   });
@@ -190,6 +237,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
         parsed?.params?.result?.value?.data?.program === 'sysvar' &&
         parsed?.params?.result?.value?.data?.parsed?.type === 'clock'
       ) {
+        metrics.heartbeatStats.total++;
         lastHeartbeatTimestamp = Date.now();
 
         if (!firstHeartbeatReceived) {
@@ -228,6 +276,9 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
         type: SOLANA_TX_NOTIFICATION_FROM_HELIUS,
         payload: payloadWithTimestamp
       });
+
+      metrics.transactionStats.total++;
+      metrics.transactionStats.lastReceivedAt = Date.now();
 
     } catch (e) {
       logToTerminal(`Failed to parse JSON: ${e}`);

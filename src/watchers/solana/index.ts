@@ -55,6 +55,12 @@ type HeliusConnectionMetrics = {
     total: number;
     lastReceivedAt: number | null;
   };
+  latencyStats: {
+    current: number | null;
+    average: number | null;
+    samples: number;
+    total: number;
+  };
 }
 
 const metrics: HeliusConnectionMetrics = {
@@ -69,6 +75,12 @@ const metrics: HeliusConnectionMetrics = {
   transactionStats: {
     total: 0,
     lastReceivedAt: null,
+  },
+  latencyStats: {
+    current: null,
+    average: null,
+    samples: 0,
+    total: 0
   }
 };
 
@@ -193,7 +205,15 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     logToTerminal('Subscribed to heartbeat (clock sysvar)');
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
-        wsInstance.ping();
+        const pingStart = Date.now();
+        wsInstance.ping(() => {
+          const latency = Date.now() - pingStart;
+
+          metrics.latencyStats.current = latency;
+          metrics.latencyStats.total += latency;
+          metrics.latencyStats.samples++;
+          metrics.latencyStats.average = Math.round(metrics.latencyStats.total / metrics.latencyStats.samples);
+        });
       }
     }, 30000);
 

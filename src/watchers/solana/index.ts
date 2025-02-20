@@ -203,30 +203,18 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     }));
     logServerEvent(`Subscribed to heartbeat (clock sysvar)`);
     logToTerminal('Subscribed to heartbeat (clock sysvar)');
+
+    let lastPingSentTime: number | null = null;
+
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
-        const pingStart = Date.now();
-        logToTerminal(`Sending ping at ${pingStart}`);
-
-        wsInstance.ping((err: any) => {
-          if (err) {
-            logToTerminal(`Ping callback error: ${err}`);
-            return;
-          }
-          const latency = Date.now() - pingStart;
-          logToTerminal(`Ping callback executed. Latency: ${latency}ms`);
-
-          metrics.latencyStats.current = latency;
-          metrics.latencyStats.total += latency;
-          metrics.latencyStats.samples++;
-          metrics.latencyStats.average = Math.round(metrics.latencyStats.total / metrics.latencyStats.samples);
-
-          logToTerminal(`Updated metrics: ${JSON.stringify(metrics.latencyStats, null, 2)}`);
-        });
+        lastPingSentTime = Date.now();
+        logToTerminal(`Sending ping at ${lastPingSentTime}`);
+        wsInstance.ping();
       } else {
         logToTerminal(`Skipped ping - WebSocket not open (state: ${wsInstance?.readyState})`);
       }
-    }, 10000);
+    }, 30000);
 
     const healthCheckInterval = setInterval(async () => {
       await checkConnectionHealth(clients);
@@ -252,9 +240,22 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       reconnect(clients);
     });
 
-    // Add explicit pong handler
+    // Calculate latency in the pong handler instead
     wsInstance.on('pong', () => {
-      logToTerminal(`Received pong at ${Date.now()}`);
+      const pongTime = Date.now();
+      logToTerminal(`Received pong at ${pongTime}`);
+
+      if (lastPingSentTime) {
+        const latency = pongTime - lastPingSentTime;
+        logToTerminal(`Calculated latency: ${latency}ms`);
+
+        metrics.latencyStats.current = latency;
+        metrics.latencyStats.total += latency;
+        metrics.latencyStats.samples++;
+        metrics.latencyStats.average = Math.round(metrics.latencyStats.total / metrics.latencyStats.samples);
+
+        logToTerminal(`Updated metrics: ${JSON.stringify(metrics.latencyStats, null, 2)}`);
+      }
     });
   });
 

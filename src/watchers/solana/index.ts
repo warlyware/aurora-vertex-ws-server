@@ -207,7 +207,6 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
         lastPingSentTime = Date.now();
-        logToTerminal(`Sending ping at ${lastPingSentTime}`);
         wsInstance.ping();
       } else {
         logToTerminal(`Skipped ping - WebSocket not open (state: ${wsInstance?.readyState})`);

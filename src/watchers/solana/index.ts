@@ -56,10 +56,9 @@ type HeliusConnectionMetrics = {
     lastReceivedAt: number | null;
   };
   latencyStats: {
-    current: number | null;
-    average: number | null;
-    samples: number;
-    total: number;
+    current: number | null;    // Current round-trip time
+    average: number | null;    // Average of round-trip times
+    samples: number;          // Number of measurements
   };
 }
 
@@ -79,8 +78,7 @@ const metrics: HeliusConnectionMetrics = {
   latencyStats: {
     current: null,
     average: null,
-    samples: 0,
-    total: 0
+    samples: 0
   }
 };
 
@@ -214,7 +212,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       } else {
         logToTerminal(`Skipped ping - WebSocket not open (state: ${wsInstance?.readyState})`);
       }
-    }, 30000);
+    }, 15000);
 
     const healthCheckInterval = setInterval(async () => {
       await checkConnectionHealth(clients);
@@ -240,21 +238,22 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       reconnect(clients);
     });
 
-    // Calculate latency in the pong handler instead
     wsInstance.on('pong', () => {
       const pongTime = Date.now();
-      logToTerminal(`Received pong at ${pongTime}`);
 
       if (lastPingSentTime) {
-        const latency = pongTime - lastPingSentTime;
-        logToTerminal(`Calculated latency: ${latency}ms`);
+        const roundTrip = pongTime - lastPingSentTime;
 
-        metrics.latencyStats.current = latency;
-        metrics.latencyStats.total += latency;
+        metrics.latencyStats.current = roundTrip;
         metrics.latencyStats.samples++;
-        metrics.latencyStats.average = Math.round(metrics.latencyStats.total / metrics.latencyStats.samples);
 
-        logToTerminal(`Updated metrics: ${JSON.stringify(metrics.latencyStats, null, 2)}`);
+        if (metrics.latencyStats.average === null) {
+          metrics.latencyStats.average = roundTrip;
+        } else {
+          metrics.latencyStats.average = Math.round(
+            (metrics.latencyStats.average + roundTrip) / 2
+          );
+        }
       }
     });
   });

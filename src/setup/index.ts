@@ -67,13 +67,6 @@ export const setupEventListeners = (
 
     const { BOTS, SOLANA } = messageGroups;
 
-    if (type !== PING) {
-      console.log({
-        type,
-        payload,
-      });
-    }
-
     switch (type) {
       case PING: {
         const serverReceivedTime = Date.now();

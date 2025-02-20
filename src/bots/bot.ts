@@ -4,6 +4,7 @@ import { SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
 import { BotStrategy, getActiveStrategy, getBotById, getTargetTraderAddress } from "../utils/bots";
 import { BotInfo } from "./manager";
 import dayjs from "dayjs";
+import { getAbbreviatedAddress } from "../utils/solana";
 
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
@@ -311,11 +312,11 @@ const sendToBotManager = (message: BotMessage) => {
     let info: string | undefined;
     const traderAddress = event.payload.actions.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL')?.source;
 
-    logToTerminal(`Solana tx received ${event.payload.tx.params.result.signature}`);
+    logToTerminal(`Solana tx received ${getAbbreviatedAddress(event.payload.tx.params.result.signature)}`);
 
     let shouldExecuteTrade = false;
     if (traderAddress !== session.targetTraderAddress) {
-      logToTerminal(`Skipping trade ${event.payload.tx.params.result.signature}`);
+      // logToTerminal(`Skipping trade`);
       shouldExecuteTrade = false;
     } else {
       shouldExecuteTrade = getShouldExecuteTrade(event.payload, session);

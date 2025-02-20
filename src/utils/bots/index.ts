@@ -85,8 +85,6 @@ export const addWallet = async (botId: string, address: string) => {
 export const updateBotSettings = async (botId: string, botSettings: BotSettings, res?: Response) => {
   const client = await getGqlClient();
 
-  console.log({ botSettings });
-
   if (botSettings.ejectWalletAddress) {
     const walletId = await addWallet(botId, botSettings.ejectWalletAddress);
 

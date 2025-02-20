@@ -286,9 +286,32 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
   });
 
   wsInstance.on('error', (err) => {
-    logToTerminal(`Primary WS Error: ${err}`);
-    logServerEvent(`Primary WS Error: ${err}`);
-    reconnect(clients);
+    const errorMessage = err.toString();
+    metrics.lastDisconnectReason = errorMessage;
+
+    // Log the specific error
+    logToTerminal(`Primary WS Error: ${errorMessage}`);
+    logServerEvent(`Primary WS Error: ${errorMessage}`);
+
+    // Force close and reconnect for h2 protocol errors
+    if (errorMessage.includes('h2 protocol error') || errorMessage.includes('Body')) {
+      logToTerminal('Detected h2 protocol error - forcing reconnection');
+      logServerEvent('Detected h2 protocol error - forcing reconnection');
+
+      // Force close the connection
+      closeWebSocket();
+
+      // Immediate reconnect instead of waiting
+      isReconnecting = true;
+      setupSolanaWatchers(clients);
+
+      setTimeout(() => {
+        isReconnecting = false;
+      }, 1000);
+    } else {
+      // Standard reconnect for other errors
+      reconnect(clients);
+    }
   });
 
   wsInstance.on('close', (code, reason) => {

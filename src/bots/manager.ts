@@ -71,8 +71,6 @@ const sendToBotProcess = ({
 };
 
 export const spawnBot = async (botId: string, userId: string) => {
-  console.log(`Spawning bot ${botId}`);
-
   if (bots.has(botId)) {
     console.log(`Bot ${botId} already exists. Skipping spawn.`);
     return;

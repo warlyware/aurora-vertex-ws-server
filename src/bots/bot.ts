@@ -13,6 +13,10 @@ const { BOT_SPAWN,
   BOT_LOG_EVENT
 } = messageTypes;
 
+const logToTerminal = (message: string) => {
+  console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} ${message}`);
+};
+
 export type BotMessage = {
   type: typeof BOT_STATUS_UPDATE | typeof BOT_TRADE_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
   payload: {
@@ -307,16 +311,11 @@ const sendToBotManager = (message: BotMessage) => {
     let info: string | undefined;
     const traderAddress = event.payload.actions.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL')?.source;
 
-    console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} handleSolanaEvent`, {
-      tx: event.payload.tx.params.result.signature,
-      traderAddress,
-      targetTraderAddress: session.targetTraderAddress,
-      actions: event.payload.actions
-    })
+    logToTerminal(`Solana tx received ${event.payload.tx.params.result.signature}`);
 
     let shouldExecuteTrade = false;
     if (traderAddress !== session.targetTraderAddress) {
-      console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} Skipping trade ${event.payload.tx.params.result.signature}`);
+      logToTerminal(`Skipping trade ${event.payload.tx.params.result.signature}`);
       shouldExecuteTrade = false;
     } else {
       shouldExecuteTrade = getShouldExecuteTrade(event.payload, session);

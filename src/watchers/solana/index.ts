@@ -260,7 +260,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       const keysToSend = sortedKeys.slice(-AMOUNT_TO_SEND_TO_CLIENT);
 
       const transactions = keysToSend.length > 0 ? await redis.mget(...keysToSend) : [];
-      console.log('number of transactions to send', transactions.length);
+
       for (const tx of transactions) {
         if (tx) {
           sendToConnectedClients({
@@ -278,7 +278,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       const sortedLogs = logs.sort();
       const logsToSend = sortedLogs.slice(-AMOUNT_TO_SEND_TO_CLIENT).map(log => log.replace('log:', ''));
       const logsData = logsToSend.length > 0 ? await redis.mget(...logsToSend) : [];
-      console.log('number of logs to send', logsData.length);
+
       for (let i = 0; i < logsToSend.length; i++) {
         sendToConnectedClients({
           type: SERVER_LOG_EVENT,

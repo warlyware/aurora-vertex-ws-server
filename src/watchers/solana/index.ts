@@ -206,16 +206,27 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     const pingInterval = setInterval(() => {
       if (wsInstance?.readyState === WebSocket.OPEN) {
         const pingStart = Date.now();
-        wsInstance.ping(() => {
+        logToTerminal(`Sending ping at ${pingStart}`);
+
+        wsInstance.ping((err: any) => {
+          if (err) {
+            logToTerminal(`Ping callback error: ${err}`);
+            return;
+          }
           const latency = Date.now() - pingStart;
+          logToTerminal(`Ping callback executed. Latency: ${latency}ms`);
 
           metrics.latencyStats.current = latency;
           metrics.latencyStats.total += latency;
           metrics.latencyStats.samples++;
           metrics.latencyStats.average = Math.round(metrics.latencyStats.total / metrics.latencyStats.samples);
+
+          logToTerminal(`Updated metrics: ${JSON.stringify(metrics.latencyStats, null, 2)}`);
         });
+      } else {
+        logToTerminal(`Skipped ping - WebSocket not open (state: ${wsInstance?.readyState})`);
       }
-    }, 30000);
+    }, 10000);
 
     const healthCheckInterval = setInterval(async () => {
       await checkConnectionHealth(clients);
@@ -239,6 +250,11 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       logToTerminal(`Helius Primary WebSocket closed. Attempting to reconnect...`);
       logToTerminal(`Code ${code}, Reason: ${reason}`);
       reconnect(clients);
+    });
+
+    // Add explicit pong handler
+    wsInstance.on('pong', () => {
+      logToTerminal(`Received pong at ${Date.now()}`);
     });
   });
 

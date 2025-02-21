@@ -82,8 +82,31 @@ const metrics: HeliusConnectionMetrics = {
   }
 };
 
+const resetMetrics = () => {
+  metrics.lastConnectedAt = null;
+  metrics.disconnectionCount = 0;
+  metrics.reconnectionAttempts = 0;
+  metrics.totalUptime = 0;
+  metrics.lastDisconnectReason = undefined;
+  metrics.heartbeatStats = {
+    total: 0,
+    missed: 0,
+  };
+  metrics.transactionStats = {
+    total: 0,
+    lastReceivedAt: null,
+  };
+  metrics.latencyStats = {
+    current: null,
+    average: null,
+    samples: 0
+  };
+};
+
 export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
   if (heliusWs) return;
+
+  resetMetrics();
 
   const wsInstance = new WebSocket(
     `wss://atlas-mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`
@@ -203,14 +226,21 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     logToTerminal('Subscribed to heartbeat (clock sysvar)');
 
     let lastPingSentTime: number | null = null;
+    let pingInterval: NodeJS.Timeout;
 
-    const pingInterval = setInterval(() => {
-      if (wsInstance?.readyState === WebSocket.OPEN) {
-        lastPingSentTime = Date.now();
-        wsInstance.ping();
-      } else {
-        logToTerminal(`Skipped ping - WebSocket not open (state: ${wsInstance?.readyState})`);
+    const clearIntervals = () => {
+      clearInterval(pingInterval);
+      clearInterval(healthCheckInterval);
+      clearInterval(metricsInterval);
+    };
+
+    pingInterval = setInterval(() => {
+      if (wsInstance?.readyState !== WebSocket.OPEN) {
+        clearIntervals();
+        return;
       }
+      lastPingSentTime = Date.now();
+      wsInstance.ping();
     }, 15000);
 
     const healthCheckInterval = setInterval(async () => {
@@ -225,9 +255,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     }, 60000);
 
     wsInstance.on('close', (code, reason) => {
-      clearInterval(pingInterval);
-      clearInterval(healthCheckInterval);
-      clearInterval(metricsInterval);
+      clearIntervals();
       metrics.disconnectionCount++;
       metrics.lastDisconnectReason = `Code ${code}, Reason: ${reason}`;
       logServerEvent(`Helius Primary WebSocket closed. Attempting to reconnect...`);

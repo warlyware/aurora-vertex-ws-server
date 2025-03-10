@@ -1,6 +1,6 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import base58 from "bs58";
-import { DEFAULT_DECIMALS, PumpFunSDK } from "pumpdotfun-sdk";
+import { PumpFunSDK } from "pumpdotfun-sdk";
 import { Connection } from "@solana/web3.js";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import NodeWallet from "@project-serum/anchor/dist/cjs/nodewallet";

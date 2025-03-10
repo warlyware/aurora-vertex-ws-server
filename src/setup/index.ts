@@ -12,9 +12,12 @@ import { setupWalletBalancesRoute } from "../endpoints/wallets/get-wallet-balanc
 import cors from "cors";
 import { setupTransferSolRoute } from "../endpoints/tokens/transfer-sol";
 import { setupBuyOnPumpfunRoute } from "../endpoints/tokens/buy-on-pumpfun";
+import { setupSellOnPumpfunRoute } from "../endpoints/tokens/sell-on-pumpfun";
 import { setupTransferSplTokensRoute } from "../endpoints/tokens/transfer-spl-tokens";
 import { setupEventBusListeners } from "../events/bridge";
 import { setupUpdateBotSettingsRoute } from "../endpoints/bots/update-bot-settings";
+import { setupCreateWalletRoute } from "../endpoints/wallets/create-wallet";
+import { setupCreateBotRoute } from "../endpoints/bots/create-bot";
 
 const {
   GET_COIN_INFO,
@@ -44,9 +47,12 @@ export const setupApp = () => {
   setupWalletBalancesRoute(router);
   setupTransferSolRoute(router);
   setupBuyOnPumpfunRoute(router);
+  setupSellOnPumpfunRoute(router);
   setupTransferSplTokensRoute(router);
   setupEventBusListeners();
   setupUpdateBotSettingsRoute(router);
+  setupCreateWalletRoute(router);
+  setupCreateBotRoute(router);
 
   app.use(router);
 

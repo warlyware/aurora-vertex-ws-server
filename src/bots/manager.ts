@@ -70,7 +70,7 @@ const sendToBotProcess = ({
   });
 };
 
-export const spawnBot = async (botId: string, userId: string) => {
+export const spawnBot = async (botId: string) => {
   if (bots.has(botId)) {
     console.log(`Bot ${botId} already exists. Skipping spawn.`);
     return;
@@ -78,6 +78,8 @@ export const spawnBot = async (botId: string, userId: string) => {
 
   const botInfo = await getBotById(botId);
   const strategy = botInfo?.activeTraderStrategyUnion?.strategy;
+  const userId = botInfo?.user?.id;
+  console.log(`Spawning bot ${botId} for user ${userId}`);
 
   if (!botInfo) {
     console.log(`Bot ${botId} not found. Skipping spawn.`);
@@ -97,6 +99,12 @@ export const spawnBot = async (botId: string, userId: string) => {
     }
   }, botProcess);
 
+  bots.set(botId, {
+    ...botInfo,
+    process: botProcess,
+    userId,
+  });
+
   botProcess.on('message', (message: BotMessage) => {
     const { type, payload } = message;
     const bot = bots.get(payload.botId);
@@ -111,38 +119,17 @@ export const spawnBot = async (botId: string, userId: string) => {
     switch (type) {
       case BOT_STATUS_UPDATE:
         const existingBot = bots.get(botId);
-
         if (existingBot) {
           bots.set(botId, {
             ...existingBot,
             ...payload,
           });
-
-          eventBus.emit(BOT_STATUS_UPDATE, {
-            type: BOT_STATUS_UPDATE,
-            payload
-          });
         }
         break;
 
       case BOT_TRADE_NOTIFICATION:
-        console.log(`Bot ${botId} trade notification: ${payload}`);
-
-        eventBus.emit(BOT_TRADE_NOTIFICATION, {
-          type: BOT_TRADE_NOTIFICATION,
-          payload
-        });
-        break;
-
       case BOT_LOG_EVENT:
-        eventBus.emit(BOT_LOG_EVENT, {
-          type: BOT_LOG_EVENT,
-          payload: {
-            ...payload,
-            botId,
-            strategy,
-          }
-        });
+        break;
 
       default:
         // console.warn(`Unhandled message type: ${type}`);
@@ -161,31 +148,16 @@ export const spawnBot = async (botId: string, userId: string) => {
     bots.delete(botId);
   });
 
-  bots.set(botId, {
-    ...botInfo,
-    process: botProcess,
-    userId,
-  });
-
   const wsClient = getWsClientByUserId(botInfo.user.id);
   if (wsClient) {
     wsClient.send(JSON.stringify({
       type: BOT_STATUS_UPDATE,
       payload: {
         botId,
-        status: 'spawned'
+        isActive: true,
       }
     }));
   }
-
-  logBotEvent({
-    botId,
-    info: `
-${botInfo.name} spawned
-
-${JSON.stringify(strategy, null, 2)}
-    `,
-  });
 };
 
 export const stopBot = (botId: string) => {

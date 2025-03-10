@@ -169,6 +169,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
 
     if (Date.now() - lastEffectiveTimestamp > threshold) {
       metrics.heartbeatStats.missed++;
+      metrics.reconnectionAttempts++;
       isReconnecting = true;
       logServerEvent('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');
       logToTerminal('No heartbeat or transaction received in last 10 seconds. Restarting WebSocket...');

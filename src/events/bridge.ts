@@ -33,11 +33,7 @@ export type SolanaTxEventForBot = {
   };
 };
 
-const broadcastToWebSocketClients = (message: AuroraMessage) => {
-  sendToConnectedClients(message);
-};
-
-const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, BOT_LOG_EVENT, SERVER_LOG_EVENT } = messageTypes;
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, BOT_LOG_EVENT, BOT_TRADE_NOTIFICATION, SERVER_LOG_EVENT } = messageTypes;
 
 export const setupEventBusListeners = () => {
   eventBus.on(SOLANA_TX_NOTIFICATION_FROM_HELIUS, (event: SolanaTxNotificationFromHeliusEvent) => {
@@ -52,18 +48,30 @@ export const setupEventBusListeners = () => {
     };
 
     eventBus.emit(SOLANA_TX_EVENT, solanaTxEvent);
-    broadcastToWebSocketClients(solanaTxEvent);
+    sendToConnectedClients(solanaTxEvent); // This is a global event, send to all
   });
 
-  eventBus.on(BOT_STATUS_UPDATE, (event: BotLogEvent) => {
-    broadcastToWebSocketClients(event);
-  });
+  // Remove BOT_STATUS_UPDATE listener since it's handled directly in bot manager
 
   eventBus.on(BOT_LOG_EVENT, (event: BotLogEvent) => {
-    broadcastToWebSocketClients(event);
+    const userId = (event.payload as any).userId;
+    if (userId) {
+      sendToConnectedClients(event, userId);
+    } else {
+      sendToConnectedClients(event);
+    }
+  });
+
+  eventBus.on(BOT_TRADE_NOTIFICATION, (event: BotLogEvent) => {
+    const userId = (event.payload as any).userId;
+    if (userId) {
+      sendToConnectedClients(event, userId);
+    } else {
+      sendToConnectedClients(event);
+    }
   });
 
   eventBus.on(SERVER_LOG_EVENT, (event: AuroraMessage) => {
-    broadcastToWebSocketClients(event);
+    sendToConnectedClients(event); // Server logs go to everyone
   });
 };

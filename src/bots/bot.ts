@@ -5,6 +5,9 @@ import { BotStrategy, getActiveStrategy, getBotById, getTargetTraderAddress } fr
 import { BotInfo } from "./manager";
 import dayjs from "dayjs";
 import { getAbbreviatedAddress } from "../utils/solana";
+import axios from "axios";
+import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL } from "../constants";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
@@ -21,6 +24,11 @@ const logToTerminal = (message: string) => {
 export type BotMessage = {
   type: typeof BOT_STATUS_UPDATE | typeof BOT_TRADE_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
   payload: {
+    status?: any;
+    tradeHistory?: any;
+    lastTradeTime?: any;
+    errors?: any;
+    tradesExecuted?: any;
     botId: string;
     keypair?: string;
     strategy?: string;
@@ -52,10 +60,8 @@ type TokenSession = {
   profit: number;
 }
 
-const getShouldExecuteTrade = (event: {
-  actions: TxAction[];
-  tx: SolanaTxNotificationFromHeliusWithTimestamp;
-}, session: {
+const getShouldExecuteTrade = (mainAction: TxAction, session: {
+  profit: number;
   bot: BotInfo | null;
   strategy: BotStrategy | null;
   tokens: { [tokenMint: string]: TokenSession };
@@ -75,17 +81,6 @@ const getShouldExecuteTrade = (event: {
     priorityFee,
     intendedTradeRatio
   } = session.strategy || {};
-
-  const txSignature = event.tx?.params?.result?.signature;
-
-  let mainAction: TxAction | undefined;
-  const isPumpFunBuy = event.actions?.some(action => action.type === 'PUMPFUN_BUY');
-  const isPumpFunSell = event.actions?.some(action => action.type === 'PUMPFUN_SELL');
-
-  if (isPumpFunBuy || isPumpFunSell) {
-    mainAction = event.actions?.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL');
-  }
-
   if (!mainAction) {
     console.error('No trade action found');
     return false;
@@ -103,9 +98,12 @@ const getShouldExecuteTrade = (event: {
   let effectiveTradeRatio = intendedTradeRatio ?? 0;
 
   if (mainAction?.solChange && mainAction.tokenMint) {
-    const originalTradeAmount = Math.abs(mainAction.solChange);
+    const isBuy = mainAction.type === 'PUMPFUN_BUY';
+    const lamportsChange = Math.abs(mainAction.solChange) * LAMPORTS_PER_SOL;
+    const lamoportsMaxBuyAmount = (session.strategy?.maxBuyAmount || 0) * LAMPORTS_PER_SOL;
+    const originalTradeAmount = isBuy ? lamportsChange : Math.abs(mainAction.tokenAmount ?? 0);
     const intendedTradeAmount = originalTradeAmount * effectiveTradeRatio;
-    amountToBuy = Math.min(intendedTradeAmount, maxBuyAmount ?? 0);
+    amountToBuy = Math.min(intendedTradeAmount, lamoportsMaxBuyAmount);
 
     effectiveTradeRatio = amountToBuy / originalTradeAmount;
 
@@ -150,32 +148,45 @@ const getShouldExecuteTrade = (event: {
       break;
   }
 
-  //   if (shouldExecuteTrade) {
-  //     info = `
-  // I am bot ${session.bot?.name} and I am considering a ${mainAction?.type} copytrade.
-  // The original trade is for ${mainAction?.tokenAmount} ${mainAction?.tokenMint} costing ${mainAction?.solChange} SOL.
-  // The current intendedTradeRatio is ${intendedTradeRatio}, therefore I will only buy up to ${amountToBuy} SOL.
-  //   `
-  //   } else {
-  //     info = `
-  // I am bot ${session.bot?.name} and I SKIPPING THIS ${mainAction?.type} copytrade.
-  // `
-  //   }
+  if (shouldExecuteTrade && mainAction?.tokenMint && mainAction.solChange && mainAction.tokenAmount) {
+    const tradeType = mainAction.type === 'PUMPFUN_BUY' ? 'BUY' : 'SELL';
+    const price = Math.abs(mainAction.solChange / mainAction.tokenAmount);
+    const originalTradeAmount = Math.abs(mainAction.tokenAmount);
+    const effectiveTradeRatio = session.tokens[mainAction.tokenMint]?.effectiveRatio ?? 0;
 
-  // sendToBotManager({
-  //   type: BOT_LOG_EVENT,
-  //   payload: {
-  //     botId: session.bot?.id,
-  //     strategy: session.strategy?.name,
-  //     info,
-  //     data: {
-  //       txSignature,
-  //       isPumpFunBuy,
-  //       isPumpFunSell,
-  //       mainAction,
-  //     }
-  //   }
-  // });
+    if (!effectiveTradeRatio) {
+      console.error('No effective trade ratio found, aborting trade');
+      return false;
+    }
+
+    const amount = Math.abs(originalTradeAmount * effectiveTradeRatio);
+
+    // Update token session
+    const tokenSession = session.tokens[mainAction.tokenMint];
+    if (tokenSession) {
+      if (tradeType === 'BUY') {
+        tokenSession.lastBuyPrice = price;
+        tokenSession.totalBought += amount;
+      } else {
+        tokenSession.totalSold += amount;
+      }
+
+      tokenSession.trades.push({
+        type: tradeType,
+        price,
+        amount,
+        timestamp: Date.now()
+      });
+
+      const profit = tokenSession.lastBuyPrice
+        ? ((price - tokenSession.lastBuyPrice) / tokenSession.lastBuyPrice) * 100
+        : 0;
+
+      if (profit !== 0) {
+        session.profit += profit;
+      }
+    }
+  }
 
   return shouldExecuteTrade;
 }
@@ -250,7 +261,26 @@ const sendToBotManager = (message: BotMessage) => {
 
     const tradeType = mainAction.type === 'PUMPFUN_BUY' ? 'BUY' : 'SELL';
     const price = Math.abs(mainAction.solChange / mainAction.tokenAmount);
-    const amount = Math.abs(mainAction.tokenAmount);
+
+    const effectiveTradeRatio = session.tokens[mainAction.tokenMint]?.effectiveRatio ?? 0;
+    const lamportsChange = Math.abs(mainAction.solChange) * LAMPORTS_PER_SOL;
+    const lamoportsMaxBuyAmount = (session.strategy?.maxBuyAmount || 0) * LAMPORTS_PER_SOL;
+
+    // Declare variables outside if/else block so they're available for logging
+    let amount: number;
+    let originalTradeAmount: number;
+    let intendedTradeAmount: number;
+
+    if (mainAction.type === 'PUMPFUN_BUY') {
+      originalTradeAmount = lamportsChange;
+      intendedTradeAmount = originalTradeAmount * effectiveTradeRatio;
+      amount = Math.floor(Math.min(intendedTradeAmount, lamoportsMaxBuyAmount)); // Ensure whole number for lamports
+    } else {
+      // For sells, work directly with token amounts and keep them as whole numbers
+      originalTradeAmount = Math.abs(mainAction.tokenAmount);
+      intendedTradeAmount = originalTradeAmount * effectiveTradeRatio;
+      amount = Math.floor(intendedTradeAmount); // Ensure whole number for tokens
+    }
 
     const tokenSession = session.tokens[mainAction.tokenMint];
     if (tokenSession) {
@@ -289,6 +319,43 @@ const sendToBotManager = (message: BotMessage) => {
       });
     }
 
+    console.log("Executing trade", {
+      timestamp: Date.now(),
+      price,
+      quantity: amount,
+      lamportsChange,
+      lamoportsMaxBuyAmount,
+      originalTradeAmount,
+      intendedTradeAmount,
+      effectiveTradeRatio,
+      type: tradeType,
+      tokenMint: mainAction.tokenMint
+    });
+
+    if (tradeType === 'BUY') {
+      axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
+        botId: payload.botId,
+        mintAddress: mainAction.tokenMint,
+        amountInLamports: amount,
+        apiKey: AURORA_VERTEX_API_KEY,
+        priorityFeeInLamports: session.strategy?.priorityFee
+      }).catch(error => {
+        console.error('Error executing buy order:', error.message);
+        status.errors += 1;
+      });
+    } else {
+      axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
+        botId: payload.botId,
+        mintAddress: mainAction.tokenMint,
+        tokenAmount: amount,
+        apiKey: AURORA_VERTEX_API_KEY,
+        priorityFeeInLamports: session.strategy?.priorityFee
+      }).catch(error => {
+        console.error('Error executing sell order:', error.message);
+        status.errors += 1;
+      });
+    }
+
     updateStats({
       timestamp: Date.now(),
       price,
@@ -319,7 +386,26 @@ const sendToBotManager = (message: BotMessage) => {
       // logToTerminal(`Skipping trade`);
       shouldExecuteTrade = false;
     } else {
-      shouldExecuteTrade = getShouldExecuteTrade(event.payload, session);
+      let mainAction: TxAction | undefined;
+      const isPumpFunBuy = event.payload.actions?.some(action => action.type === 'PUMPFUN_BUY');
+      const isPumpFunSell = event.payload.actions?.some(action => action.type === 'PUMPFUN_SELL');
+
+      if (isPumpFunBuy || isPumpFunSell) {
+        mainAction = event.payload.actions?.find(action => action.type === 'PUMPFUN_BUY' || action.type === 'PUMPFUN_SELL');
+      }
+
+      console.log("Main action", {
+        isPumpFunBuy,
+        isPumpFunSell,
+        mainAction
+      });
+
+      if (!mainAction) {
+        console.error('No main action found');
+        return;
+      }
+
+      shouldExecuteTrade = getShouldExecuteTrade(mainAction, session);
     }
 
     if (shouldExecuteTrade) {
@@ -334,6 +420,8 @@ const sendToBotManager = (message: BotMessage) => {
 
     if (!session.strategy || !session.targetTraderAddress) {
       console.error(`No strategy or target trader address found for bot ${botId}`);
+      // kill bot
+      process.exit(0);
       return;
     }
 

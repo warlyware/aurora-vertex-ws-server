@@ -6,7 +6,7 @@ import { PumpFunSDK } from "pumpdotfun-sdk";
 import { getPumpFunSdk, getSPLBalance, printSPLBalance } from "../../utils/solana";
 import { sendSplTokens } from "../../utils/tokens";
 
-const SLIPPAGE_BASIS_POINTS = 300n;
+const SLIPPAGE_BASIS_POINTS = 1000n;
 
 const calculatePriorityFees = (priorityFeeInLamports: number) => {
   const PUMPFUN_BUY_UNIT_LIMIT = 180_000;
@@ -36,15 +36,49 @@ const buyTokens = async (
   return buyResults;
 };
 
+const MAX_RETRIES = 25;
+const RETRY_DELAY_MS = 500;
+
+const retryBuy = async (
+  sdk: PumpFunSDK,
+  buyerAccount: Keypair,
+  mint: PublicKey,
+  amountInLamports: number,
+  priorityFeeInLamports: number,
+  retryCount = 0
+): Promise<any> => {
+  try {
+    return await buyTokens(sdk, buyerAccount, mint, amountInLamports, priorityFeeInLamports);
+  } catch (error) {
+    if (error instanceof Error &&
+      error.message.includes("Bonding curve account not found") &&
+      retryCount < MAX_RETRIES) {
+      console.log(`Retry attempt ${retryCount + 1} of ${MAX_RETRIES}`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+      return retryBuy(sdk, buyerAccount, mint, amountInLamports, priorityFeeInLamports, retryCount + 1);
+    }
+    throw error;
+  }
+};
+
 export function setupBuyOnPumpfunRoute(router: Router) {
   router.post('/buy-on-pumpfun', async (req: Request, res: Response) => {
-    const { botId,
+    const {
+      botId,
       mintAddress,
       amountInLamports,
       apiKey,
       priorityFeeInLamports,
       destinationAddress,
     } = req.body;
+
+    console.log("Buy on pumpfun", {
+      botId,
+      mintAddress,
+      amountInLamports,
+      priorityFeeInLamports,
+      destinationAddress,
+    });
 
     if (apiKey !== AURORA_VERTEX_API_KEY) {
       return res.status(401).json({
@@ -71,28 +105,28 @@ export function setupBuyOnPumpfunRoute(router: Router) {
       const { keypair: fromKeypair, publicKey } = await getKeysFromDb(botId);
       const fromPubkey = new PublicKey(publicKey);
 
-      const result = await buyTokens(sdk, fromKeypair, new PublicKey(mintAddress), amountInLamports, priorityFeeInLamports);
+      const result = await retryBuy(sdk, fromKeypair, new PublicKey(mintAddress), amountInLamports, priorityFeeInLamports);
 
       if (result.success) {
-        printSPLBalance(sdk.connection, mintAddress, fromPubkey);
-        const { amount, baseAmount } = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
-        console.log("Balance after buy", amount);
-        console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(
-          new PublicKey(mintAddress)
-        ));
+        // printSPLBalance(sdk.connection, mintAddress, fromPubkey);
+        // const { amount, baseAmount } = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
+        // console.log("Balance after buy", amount);
+        // console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(
+        //   new PublicKey(mintAddress)
+        // ));
 
-        let sendSignature = null;
-        if (destinationAddress && baseAmount) {
-          const toPubkey = new PublicKey(destinationAddress);
-          const mint = new PublicKey(mintAddress);
+        // let sendSignature = null;
+        // if (destinationAddress && baseAmount) {
+        //   const toPubkey = new PublicKey(destinationAddress);
+        //   const mint = new PublicKey(mintAddress);
 
-          sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, baseAmount);
-        }
+        //   sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, baseAmount);
+        // }
 
         res.status(200).json({
           success: true,
           buySignature: result.signature,
-          sendSignature
+          // sendSignature
         });
       } else {
         console.log("Buy failed", result);
@@ -103,12 +137,25 @@ export function setupBuyOnPumpfunRoute(router: Router) {
         });
       }
     } catch (error) {
-      console.error('Error buying:', error);
-
-      res.status(500).json({
-        success: false,
-        error: error,
-      });
+      if (error instanceof Error && error.message.includes("Curve is complete")) {
+        console.log("Curve is complete, need to use Raydium");
+        res.status(500).json({
+          success: false,
+          error: "Curve is complete",
+        });
+      } else if (error instanceof Error && error.message.includes("Bonding curve account not found")) {
+        console.log("Bonding curve account not found after all retries");
+        res.status(500).json({
+          success: false,
+          error: "Bonding curve account not found after all retries",
+        });
+      } else {
+        console.error('Error buying:', error);
+        res.status(500).json({
+          success: false,
+          error: error,
+        });
+      }
     }
   });
 }

@@ -54,11 +54,10 @@ export const setupEventBusListeners = () => {
   // Remove BOT_STATUS_UPDATE listener since it's handled directly in bot manager
 
   eventBus.on(BOT_LOG_EVENT, (event: BotLogEvent) => {
+    console.log('BOT_LOG_EVENT', event);
     const userId = (event.payload as any).userId;
     if (userId) {
       sendToConnectedClients(event, userId);
-    } else {
-      sendToConnectedClients(event);
     }
   });
 
@@ -66,8 +65,6 @@ export const setupEventBusListeners = () => {
     const userId = (event.payload as any).userId;
     if (userId) {
       sendToConnectedClients(event, userId);
-    } else {
-      sendToConnectedClients(event);
     }
   });
 

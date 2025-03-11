@@ -106,6 +106,7 @@ export const spawnBot = async (botId: string) => {
   });
 
   botProcess.on('message', (message: BotMessage) => {
+    // TODO: only send event to client if user owns the bot
     const { type, payload } = message;
     const bot = bots.get(payload.botId);
 
@@ -113,7 +114,11 @@ export const spawnBot = async (botId: string) => {
 
     const wsClient = getWsClientByUserId(bot.userId);
     if (wsClient) {
-      wsClient.send(JSON.stringify({ type, payload }));
+      // Add userId to payload for both BOT_LOG_EVENT and BOT_TRADE_NOTIFICATION
+      const enrichedPayload = type === BOT_LOG_EVENT || type === BOT_TRADE_NOTIFICATION
+        ? { ...payload, userId: bot.userId }
+        : payload;
+      wsClient.send(JSON.stringify({ type, payload: enrichedPayload }));
     }
 
     switch (type) {
@@ -140,7 +145,7 @@ export const spawnBot = async (botId: string) => {
   botProcess.on('exit', (code) => {
     const exitMessage = code === 0 ? 'stopped successfully' : `crashed with code ${code}`;
 
-    logBotEvent({
+    logBotEvent(botInfo, {
       botId,
       info: `${botInfo.name} quit: ${exitMessage}`
     });
@@ -160,8 +165,10 @@ export const spawnBot = async (botId: string) => {
   }
 };
 
-export const stopBot = (botId: string) => {
+export const stopBot = async (botId: string) => {
   const bot = bots.get(botId);
+  const botInfo = await getBotById(botId);
+
   if (bot) {
     sendToBotProcess({
       type: BOT_STOP,
@@ -171,7 +178,7 @@ export const stopBot = (botId: string) => {
     }, bot.process);
     // bot.process.kill();
   } else {
-    logBotEvent({
+    logBotEvent(botInfo, {
       botId,
       info: `Bot ${botId} not found`
     });

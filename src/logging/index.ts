@@ -1,6 +1,7 @@
 import { eventBus } from "../events/bus";
 import { messageTypes } from "../types/messages";
 import { redis } from "../redis";
+import { BotInfo } from "../bots/manager";
 const { SERVER_LOG_EVENT, BOT_LOG_EVENT } = messageTypes;
 
 type ServerLogEvent = {
@@ -31,10 +32,13 @@ export const logServerEvent = (event: ServerLogEvent['payload']) => {
   storeLog(`server:${event}`);
 };
 
-export const logBotEvent = (payload: BotLogEvent['payload']) => {
+export const logBotEvent = (bot: BotInfo, payload: BotLogEvent['payload']) => {
   const event = {
     type: BOT_LOG_EVENT,
-    payload
+    payload: {
+      ...payload,
+      userId: bot.user.id
+    }
   };
 
   eventBus.emit(BOT_LOG_EVENT, event);

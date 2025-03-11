@@ -4,11 +4,11 @@ import { SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
 import { BotStrategy, getActiveStrategy, getBotById, getTargetTraderAddress } from "../utils/bots";
 import { BotInfo } from "./manager";
 import dayjs from "dayjs";
-import { getAbbreviatedAddress } from "../utils/solana";
+import { getAbbreviatedAddress, getSPLBalance } from "../utils/solana";
 import axios from "axios";
 import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL } from "../constants";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-
+import { Connection, PublicKey } from "@solana/web3.js";
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
   BOT_TRADE_NOTIFICATION,
@@ -67,18 +67,8 @@ const getShouldExecuteTrade = (mainAction: TxAction, session: {
   tokens: { [tokenMint: string]: TokenSession };
 }) => {
   const {
-    id,
-    name,
-    maxBuyAmount,
-    stopLossPercentage,
-    takeProfitPercentage,
     shouldCopyBuys,
     shouldCopySells,
-    shouldEjectOnBuy,
-    shouldEjectOnCurve,
-    shouldSellOnCurve,
-    slippagePercentage,
-    priorityFee,
     intendedTradeRatio
   } = session.strategy || {};
   if (!mainAction) {
@@ -238,7 +228,7 @@ const sendToBotManager = (message: BotMessage) => {
     }
   };
 
-  const executeTradeLogic = (payload: {
+  const executeTradeLogic = async (payload: {
     tx: SolanaTxNotificationFromHeliusWithTimestamp;
     actions: TxAction[];
     botId: string;
@@ -264,7 +254,24 @@ const sendToBotManager = (message: BotMessage) => {
 
     const effectiveTradeRatio = session.tokens[mainAction.tokenMint]?.effectiveRatio ?? 0;
     const lamportsChange = Math.abs(mainAction.solChange) * LAMPORTS_PER_SOL;
-    const lamoportsMaxBuyAmount = (session.strategy?.maxBuyAmount || 0) * LAMPORTS_PER_SOL;
+
+    const {
+      maxBuyAmount,
+      stopLossPercentage,
+      takeProfitPercentage,
+      slippagePercentage,
+      priorityFee,
+      intendedTradeRatio,
+      shouldCopyBuys,
+      shouldCopySells,
+      shouldEjectOnBuy,
+      shouldEjectOnCurve,
+      shouldSellOnCurve
+    } = session.strategy || {};
+
+    const lamoportsMaxBuyAmount = (maxBuyAmount || 0) * LAMPORTS_PER_SOL;
+
+    const ejectWalletAddress = session.bot?.ejectWallet?.address;
 
     // Declare variables outside if/else block so they're available for logging
     let amount: number;
@@ -280,6 +287,14 @@ const sendToBotManager = (message: BotMessage) => {
       originalTradeAmount = Math.abs(mainAction.tokenAmount);
       intendedTradeAmount = originalTradeAmount * effectiveTradeRatio;
       amount = Math.floor(intendedTradeAmount); // Ensure whole number for tokens
+    }
+
+    if (tradeType === 'BUY' && !shouldCopyBuys) {
+      return;
+    }
+
+    if (tradeType === 'SELL' && !shouldCopySells) {
+      return;
     }
 
     const tokenSession = session.tokens[mainAction.tokenMint];
@@ -333,7 +348,15 @@ const sendToBotManager = (message: BotMessage) => {
     });
 
     if (tradeType === 'BUY') {
-      axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
+      sendToBotManager({
+        type: BOT_LOG_EVENT,
+        payload: {
+          botId: payload.botId,
+          info: `Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`,
+        },
+      });
+
+      const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
         botId: payload.botId,
         mintAddress: mainAction.tokenMint,
         amountInLamports: amount,
@@ -342,9 +365,61 @@ const sendToBotManager = (message: BotMessage) => {
       }).catch(error => {
         console.error('Error executing buy order:', error.message);
         status.errors += 1;
+        return;
       });
+
+      console.log("Buy order response", response?.data);
+
+      sendToBotManager({
+        type: BOT_LOG_EVENT,
+        payload: {
+          botId: payload.botId,
+          info: `Buy order response: ${response?.data}`,
+        },
+      });
+
+      const rpcEndpoint = process.env.RPC_ENDPOINT;
+      if (shouldEjectOnBuy && ejectWalletAddress && rpcEndpoint) {
+        const connection = new Connection(rpcEndpoint);
+        const { amount, baseAmount } = await getSPLBalance(connection, new PublicKey(mainAction.tokenMint), new PublicKey(ejectWalletAddress));
+
+        sendToBotManager({
+          type: BOT_LOG_EVENT,
+          payload: {
+            botId: payload.botId,
+            info: `Ejecting ${baseAmount} tokens of ${mainAction.tokenMint}`,
+          },
+        });
+
+        const ejectResponse = await axios.post(`${AURORA_VERTEX_API_URL}/transfer-spl-tokens`, {
+          botId: payload.botId,
+          toAddress: ejectWalletAddress,
+          mintAddress: mainAction.tokenMint,
+          amount: baseAmount,
+          apiKey: AURORA_VERTEX_API_KEY,
+        });
+
+        console.log("Eject response", ejectResponse?.data);
+
+        sendToBotManager({
+          type: BOT_LOG_EVENT,
+          payload: {
+            botId: payload.botId,
+            info: `Eject response: ${ejectResponse?.data}`,
+          },
+        });
+      }
+
     } else {
-      axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
+      sendToBotManager({
+        type: BOT_LOG_EVENT,
+        payload: {
+          botId: payload.botId,
+          info: `Attempting to sell ${amount} tokens of ${mainAction.tokenMint}`,
+        },
+      });
+
+      const response = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
         botId: payload.botId,
         mintAddress: mainAction.tokenMint,
         tokenAmount: amount,
@@ -353,6 +428,17 @@ const sendToBotManager = (message: BotMessage) => {
       }).catch(error => {
         console.error('Error executing sell order:', error.message);
         status.errors += 1;
+        return;
+      });
+
+      console.log("Sell order response", response?.data);
+
+      sendToBotManager({
+        type: BOT_LOG_EVENT,
+        payload: {
+          botId: payload.botId,
+          info: `Sell order response: ${response?.data}`,
+        },
       });
     }
 
@@ -362,6 +448,23 @@ const sendToBotManager = (message: BotMessage) => {
       quantity: amount,
       type: tradeType,
       tokenMint: mainAction.tokenMint
+    });
+
+    // Send trade notification
+    sendToBotManager({
+      type: BOT_TRADE_NOTIFICATION,
+      payload: {
+        botId: payload.botId,
+        info: `${tradeType} executed: ${amount} tokens at ${price} SOL`,
+        data: {
+          timestamp: Date.now(),
+          price,
+          quantity: amount,
+          type: tradeType,
+          tokenMint: mainAction.tokenMint,
+          profit: session.profit
+        }
+      }
     });
   };
 

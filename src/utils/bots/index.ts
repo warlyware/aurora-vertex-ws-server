@@ -26,6 +26,8 @@ export type BotStrategy = {
   shouldEjectOnBuy: boolean;
   shouldEjectOnCurve: boolean;
   shouldSellOnCurve: boolean;
+  shouldAutoSell: boolean;
+  autoSellDelayInMs: number;
   traderId: string;
   priorityFee: number;
   createdAt: string;

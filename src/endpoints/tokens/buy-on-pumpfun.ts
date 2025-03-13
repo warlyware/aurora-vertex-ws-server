@@ -1,10 +1,11 @@
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { getKeysFromDb, helius } from "../../utils/wallets";
 import { Router, Request, Response } from "express";
-import { AURORA_VERTEX_API_KEY } from "../../constants";
+import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL } from "../../constants";
 import { PumpFunSDK } from "pumpdotfun-sdk";
 import { getPumpFunSdk, getSPLBalance, printSPLBalance } from "../../utils/solana";
 import { sendSplTokens } from "../../utils/tokens";
+import axios from "axios";
 
 const SLIPPAGE_BASIS_POINTS = 1000n;
 
@@ -70,6 +71,8 @@ export function setupBuyOnPumpfunRoute(router: Router) {
       apiKey,
       priorityFeeInLamports,
       destinationAddress,
+      shouldAutoSell,
+      autoSellDelayInMs = 0
     } = req.body;
 
     console.log("Buy on pumpfun", {
@@ -107,35 +110,98 @@ export function setupBuyOnPumpfunRoute(router: Router) {
 
       const result = await retryBuy(sdk, fromKeypair, new PublicKey(mintAddress), amountInLamports, priorityFeeInLamports);
 
+      console.log("Buy result", result);
+
       if (result.success) {
-        // printSPLBalance(sdk.connection, mintAddress, fromPubkey);
-        // const { amount, baseAmount } = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
-        // console.log("Balance after buy", amount);
-        // console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(
-        //   new PublicKey(mintAddress)
-        // ));
+        if (shouldAutoSell) {
+          console.log("Auto selling tokens");
 
-        // let sendSignature = null;
-        // if (destinationAddress && baseAmount) {
-        //   const toPubkey = new PublicKey(destinationAddress);
-        //   const mint = new PublicKey(mintAddress);
+          const balance = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
 
-        //   sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, baseAmount);
-        // }
+          if (autoSellDelayInMs) {
+            await new Promise(resolve => setTimeout(resolve, autoSellDelayInMs));
+          }
 
-        res.status(200).json({
-          success: true,
-          buySignature: result.signature,
-          // sendSignature
-        });
-      } else {
-        console.log("Buy failed", result);
+          const response = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
+            botId,
+            mintAddress,
+            tokenAmount: balance?.baseAmount,
+            apiKey: AURORA_VERTEX_API_KEY,
+            priorityFeeInLamports: priorityFeeInLamports
+          }).catch(error => {
+            console.error('Error executing sell order:', error.message);
+            return;
+          });
 
-        res.status(500).json({
-          success: false,
-          error: result,
-        });
+          console.log("Sell result", response?.data);
+
+        } else if (destinationAddress) {
+          console.log("Sending to destination address", destinationAddress);
+
+          const toPubkey = new PublicKey(destinationAddress);
+          const mint = new PublicKey(mintAddress);
+
+          const balance = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
+          console.log("Balance after buy", balance.amount, balance.baseAmount);
+
+          if (balance?.baseAmount && Number(balance?.baseAmount) > 0) {
+
+            const sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, balance?.baseAmount || 0);
+            console.log("Send signature", sendSignature);
+            res.status(200).json({
+              success: true,
+              buySignature: result.signature,
+              sendSignature,
+            });
+          }
+        } else {
+          res.status(200).json({
+            success: true,
+            buySignature: result.signature,
+          });
+        }
       }
+
+      // if (destinationAddress && result.success) {
+      //   const toPubkey = new PublicKey(destinationAddress);
+      //   const mint = new PublicKey(mintAddress);
+
+      //   const sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, result.amount);
+
+      //   res.status(200).json({
+      //     success: true,
+      //     buySignature: result.signature,
+      //     sendSignature,
+      //   });
+      // } else if (result.success) {
+      // printSPLBalance(sdk.connection, mintAddress, fromPubkey);
+      // const { amount, baseAmount } = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
+      // console.log("Balance after buy", amount);
+      // console.log("Bonding curve after buy", await sdk.getBondingCurveAccount(
+      //   new PublicKey(mintAddress)
+      // ));
+
+      // let sendSignature = null;
+      // if (destinationAddress && baseAmount) {
+      //   const toPubkey = new PublicKey(destinationAddress);
+      //   const mint = new PublicKey(mintAddress);
+
+      //   sendSignature = await sendSplTokens(fromKeypair, toPubkey, mint, baseAmount);
+      // }
+
+      // res.status(200).json({
+      //   success: true,
+      //   buySignature: result.signature,
+      //   // sendSignature
+      // });
+      // } else {
+      //   console.log("Buy failed", result);
+
+      //   res.status(500).json({
+      //     success: false,
+      //     error: result,
+      //   });
+      // }
     } catch (error) {
       if (error instanceof Error && error.message.includes("Curve is complete")) {
         console.log("Curve is complete, need to use Raydium");

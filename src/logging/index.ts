@@ -11,10 +11,11 @@ type ServerLogEvent = {
 
 export type BotLogEvent = {
   type: typeof BOT_LOG_EVENT;
+  timestamp: number;
   payload: {
-    botId: string;
     info: string;
     data?: any;
+    meta?: any;
   };
 };
 
@@ -33,8 +34,14 @@ export const logServerEvent = (event: ServerLogEvent['payload']) => {
 };
 
 export const logBotEvent = (bot: BotInfo, payload: BotLogEvent['payload']) => {
+  console.log('logBotEvent', {
+    userId: bot.user.id,
+    payload
+  });
+
   const event = {
     type: BOT_LOG_EVENT,
+    timestamp: Date.now(),
     payload: {
       ...payload,
       userId: bot.user.id

@@ -11,7 +11,6 @@ import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Connection, PublicKey } from "@solana/web3.js";
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
-  BOT_TRADE_NOTIFICATION,
   BOT_STOP,
   SOLANA_TX_EVENT_FOR_BOT,
   BOT_LOG_EVENT
@@ -21,8 +20,19 @@ const logToTerminal = (message: string) => {
   console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} ${message}`);
 };
 
+// Local version of logBotEvent that sends through the IPC channel
+const logBotEvent = (bot: BotInfo, payload: { info: string; meta?: any }) => {
+  sendToBotManager({
+    type: BOT_LOG_EVENT,
+    payload: {
+      botId: bot.id,
+      ...payload
+    }
+  });
+};
+
 export type BotMessage = {
-  type: typeof BOT_STATUS_UPDATE | typeof BOT_TRADE_NOTIFICATION | typeof BOT_SPAWN | typeof BOT_STOP;
+  type: typeof BOT_STATUS_UPDATE | typeof BOT_SPAWN | typeof BOT_STOP;
   payload: {
     status?: any;
     tradeHistory?: any;
@@ -266,7 +276,9 @@ const sendToBotManager = (message: BotMessage) => {
       shouldCopySells,
       shouldEjectOnBuy,
       shouldEjectOnCurve,
-      shouldSellOnCurve
+      shouldSellOnCurve,
+      shouldAutoSell,
+      autoSellDelayInMs
     } = session.strategy || {};
 
     const lamoportsMaxBuyAmount = (maxBuyAmount || 0) * LAMPORTS_PER_SOL;
@@ -287,6 +299,11 @@ const sendToBotManager = (message: BotMessage) => {
       originalTradeAmount = Math.abs(mainAction.tokenAmount);
       intendedTradeAmount = originalTradeAmount * effectiveTradeRatio;
       amount = Math.floor(intendedTradeAmount); // Ensure whole number for tokens
+    }
+
+    if (!session.bot) {
+      console.error('No bot found');
+      return;
     }
 
     if (tradeType === 'BUY' && !shouldCopyBuys) {
@@ -325,12 +342,8 @@ const sendToBotManager = (message: BotMessage) => {
         info += ` || Total: ${session.profit.toFixed(2)}%`;
       }
 
-      sendToBotManager({
-        type: BOT_LOG_EVENT,
-        payload: {
-          botId: payload.botId,
-          info,
-        },
+      logBotEvent(session.bot, {
+        info,
       });
     }
 
@@ -347,76 +360,71 @@ const sendToBotManager = (message: BotMessage) => {
       tokenMint: mainAction.tokenMint
     });
 
+    let buySignature: string | undefined;
+    let sendSignature: string | undefined;
+
     if (tradeType === 'BUY') {
-      sendToBotManager({
-        type: BOT_LOG_EVENT,
-        payload: {
-          botId: payload.botId,
-          info: `Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`,
-        },
+      logBotEvent(session.bot, {
+        info: `Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`,
+        meta: {
+          price,
+          quantity: amount,
+          lamportsChange,
+          lamoportsMaxBuyAmount,
+          originalTradeAmount,
+          intendedTradeAmount,
+          effectiveTradeRatio,
+          type: tradeType,
+          tokenMint: mainAction.tokenMint
+        }
       });
+
+      logToTerminal(`Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`);
 
       const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
         botId: payload.botId,
         mintAddress: mainAction.tokenMint,
         amountInLamports: amount,
         apiKey: AURORA_VERTEX_API_KEY,
-        priorityFeeInLamports: session.strategy?.priorityFee
+        priorityFeeInLamports: session.strategy?.priorityFee,
+        destinationAddress: (!shouldAutoSell && shouldEjectOnBuy && ejectWalletAddress) ? ejectWalletAddress : undefined,
+        shouldAutoSell
       }).catch(error => {
         console.error('Error executing buy order:', error.message);
         status.errors += 1;
         return;
       });
 
-      console.log("Buy order response", response?.data);
-
-      sendToBotManager({
-        type: BOT_LOG_EVENT,
-        payload: {
-          botId: payload.botId,
-          info: `Buy order response: ${response?.data}`,
-        },
-      });
-
-      const rpcEndpoint = process.env.RPC_ENDPOINT;
-      if (shouldEjectOnBuy && ejectWalletAddress && rpcEndpoint) {
-        const connection = new Connection(rpcEndpoint);
-        const { amount, baseAmount } = await getSPLBalance(connection, new PublicKey(mainAction.tokenMint), new PublicKey(ejectWalletAddress));
-
-        sendToBotManager({
-          type: BOT_LOG_EVENT,
-          payload: {
-            botId: payload.botId,
-            info: `Ejecting ${baseAmount} tokens of ${mainAction.tokenMint}`,
-          },
-        });
-
-        const ejectResponse = await axios.post(`${AURORA_VERTEX_API_URL}/transfer-spl-tokens`, {
-          botId: payload.botId,
-          toAddress: ejectWalletAddress,
-          mintAddress: mainAction.tokenMint,
-          amount: baseAmount,
-          apiKey: AURORA_VERTEX_API_KEY,
-        });
-
-        console.log("Eject response", ejectResponse?.data);
-
-        sendToBotManager({
-          type: BOT_LOG_EVENT,
-          payload: {
-            botId: payload.botId,
-            info: `Eject response: ${ejectResponse?.data}`,
-          },
-        });
+      if (response?.data?.buySignature) {
+        buySignature = response.data.buySignature;
       }
 
+      if (response?.data?.sendSignature) {
+        sendSignature = response.data.sendSignature;
+      }
+
+      logBotEvent(session.bot, {
+        info: `Buy order response: ${JSON.stringify(response?.data)}`,
+        meta: {
+          response: response?.data,
+          buySignature: response?.data?.buySignature,
+          sendSignature: response?.data?.sendSignature,
+          mintAddress: mainAction.tokenMint,
+          amountInLamports: amount,
+          destinationAddress: shouldEjectOnBuy && ejectWalletAddress ? ejectWalletAddress : undefined
+        }
+      });
+
+      logToTerminal(`Buy order response: ${JSON.stringify(response?.data)}`);
     } else {
-      sendToBotManager({
-        type: BOT_LOG_EVENT,
-        payload: {
-          botId: payload.botId,
-          info: `Attempting to sell ${amount} tokens of ${mainAction.tokenMint}`,
-        },
+      logBotEvent(session.bot, {
+        info: `Attempting to sell ${amount} tokens of ${mainAction.tokenMint}`,
+        meta: {
+          price,
+          quantity: amount,
+          type: tradeType,
+          tokenMint: mainAction.tokenMint
+        }
       });
 
       const response = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
@@ -433,12 +441,14 @@ const sendToBotManager = (message: BotMessage) => {
 
       console.log("Sell order response", response?.data);
 
-      sendToBotManager({
-        type: BOT_LOG_EVENT,
-        payload: {
-          botId: payload.botId,
-          info: `Sell order response: ${response?.data}`,
-        },
+      logBotEvent(session.bot, {
+        info: `Sell order response: ${JSON.stringify(response?.data)}`,
+        meta: {
+          response: response?.data,
+          sellSignature: response?.data?.sellSignature,
+          mintAddress: mainAction.tokenMint,
+          tokenAmount: amount,
+        }
       });
     }
 
@@ -450,20 +460,18 @@ const sendToBotManager = (message: BotMessage) => {
       tokenMint: mainAction.tokenMint
     });
 
-    // Send trade notification
-    sendToBotManager({
-      type: BOT_TRADE_NOTIFICATION,
-      payload: {
-        botId: payload.botId,
-        info: `${tradeType} executed: ${amount} tokens at ${price} SOL`,
-        data: {
-          timestamp: Date.now(),
-          price,
-          quantity: amount,
-          type: tradeType,
-          tokenMint: mainAction.tokenMint,
-          profit: session.profit
-        }
+    logBotEvent(session.bot, {
+      info: `${tradeType} executed: ${amount} tokens at ${price} SOL`,
+      meta: {
+        timestamp: Date.now(),
+        price,
+        quantity: amount,
+        type: tradeType,
+        tokenMint: mainAction.tokenMint,
+        profit: session.profit,
+        shouldEjectOnBuy,
+        buySignature,
+        sendSignature
       }
     });
   };
@@ -500,6 +508,7 @@ const sendToBotManager = (message: BotMessage) => {
       console.log("Main action", {
         isPumpFunBuy,
         isPumpFunSell,
+        sig: event.payload.tx.params.result.signature,
         mainAction
       });
 
@@ -528,12 +537,8 @@ const sendToBotManager = (message: BotMessage) => {
       return;
     }
 
-    sendToBotManager({
-      type: BOT_LOG_EVENT,
-      payload: {
-        botId,
-        info: `Starting bot ${botId}`
-      },
+    logBotEvent(session.bot, {
+      info: `${session.bot?.name} started!`
     });
 
     statusReportInterval = setInterval(() => {

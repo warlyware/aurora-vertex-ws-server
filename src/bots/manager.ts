@@ -14,7 +14,6 @@ const {
   SOLANA_TX_EVENT,
   BOT_LOG_EVENT,
   BOT_STATUS_UPDATE,
-  BOT_TRADE_NOTIFICATION,
   SOLANA_TX_EVENT_FOR_BOT,
 } = messageTypes;
 
@@ -91,6 +90,10 @@ export const spawnBot = async (botId: string) => {
 
   const keypair = `keypair-${botId}`;
 
+  logBotEvent(botInfo, {
+    info: `Starting ${botInfo.name}`
+  });
+
   sendToBotProcess({
     type: BOT_SPAWN,
     payload: {
@@ -114,8 +117,7 @@ export const spawnBot = async (botId: string) => {
 
     const wsClient = getWsClientByUserId(bot.userId);
     if (wsClient) {
-      // Add userId to payload for both BOT_LOG_EVENT and BOT_TRADE_NOTIFICATION
-      const enrichedPayload = type === BOT_LOG_EVENT || type === BOT_TRADE_NOTIFICATION
+      const enrichedPayload = type === BOT_LOG_EVENT
         ? { ...payload, userId: bot.userId }
         : payload;
       wsClient.send(JSON.stringify({ type, payload: enrichedPayload }));
@@ -132,7 +134,6 @@ export const spawnBot = async (botId: string) => {
         }
         break;
 
-      case BOT_TRADE_NOTIFICATION:
       case BOT_LOG_EVENT:
         break;
 
@@ -143,11 +144,10 @@ export const spawnBot = async (botId: string) => {
   });
 
   botProcess.on('exit', (code) => {
-    const exitMessage = code === 0 ? 'stopped successfully' : `crashed with code ${code}`;
+    const exitMessage = code === 0 ? ' successfully' : `, crashed with code ${code}`;
 
     logBotEvent(botInfo, {
-      botId,
-      info: `${botInfo.name} quit: ${exitMessage}`
+      info: `Stopped ${botInfo.name}${exitMessage}`
     });
 
     bots.delete(botId);
@@ -179,7 +179,6 @@ export const stopBot = async (botId: string) => {
     // bot.process.kill();
   } else {
     logBotEvent(botInfo, {
-      botId,
       info: `Bot ${botId} not found`
     });
   }

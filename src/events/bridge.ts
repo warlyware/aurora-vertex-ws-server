@@ -33,7 +33,7 @@ export type SolanaTxEventForBot = {
   };
 };
 
-const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, BOT_LOG_EVENT, BOT_TRADE_NOTIFICATION, SERVER_LOG_EVENT } = messageTypes;
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, BOT_LOG_EVENT, SERVER_LOG_EVENT } = messageTypes;
 
 export const setupEventBusListeners = () => {
   eventBus.on(SOLANA_TX_NOTIFICATION_FROM_HELIUS, (event: SolanaTxNotificationFromHeliusEvent) => {
@@ -55,13 +55,6 @@ export const setupEventBusListeners = () => {
 
   eventBus.on(BOT_LOG_EVENT, (event: BotLogEvent) => {
     console.log('BOT_LOG_EVENT', event);
-    const userId = (event.payload as any).userId;
-    if (userId) {
-      sendToConnectedClients(event, userId);
-    }
-  });
-
-  eventBus.on(BOT_TRADE_NOTIFICATION, (event: BotLogEvent) => {
     const userId = (event.payload as any).userId;
     if (userId) {
       sendToConnectedClients(event, userId);

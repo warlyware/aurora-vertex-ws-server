@@ -91,9 +91,13 @@ export const getSPLBalance = async (
     baseAmount: string | null
   };
 
+  console.log("Getting SPL balance for", mintAddress.toBase58(), pubKey.toBase58());
+
   try {
     let ata = getAssociatedTokenAddressSync(mintAddress, pubKey, allowOffCurve);
     const balance = await connection.getTokenAccountBalance(ata, "processed");
+
+    console.log("Balance", balance);
     returnValue = {
       amount: balance.value.uiAmount,
       baseAmount: balance.value.amount

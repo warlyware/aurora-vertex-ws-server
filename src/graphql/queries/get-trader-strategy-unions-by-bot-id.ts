@@ -14,6 +14,8 @@ export const GET_TRADER_STRATEGY_UNIONS_BY_BOT_ID = gql`
         shouldEjectOnBuy
         shouldEjectOnCurve
         shouldSellOnCurve
+        shouldAutoSell
+        autoSellDelayInMs
         priorityFee
         intendedTradeRatio
         slippagePercentage

@@ -5,7 +5,7 @@ import { AURORA_VERTEX_API_KEY } from "../../constants";
 import { PumpFunSDK } from "pumpdotfun-sdk";
 import { getPumpFunSdk, getSPLBalance, printSPLBalance } from "../../utils/solana";
 
-const SLIPPAGE_BASIS_POINTS = 1000n;
+const DEFAULT_SLIPPAGE_BASIS_POINTS = 2000n;
 
 const calculatePriorityFees = (priorityFeeInLamports: number) => {
   const PUMPFUN_SELL_UNIT_LIMIT = 180_000;
@@ -28,7 +28,7 @@ const sellTokens = async (
     sellerAccount,
     mint,
     tokenAmount,
-    SLIPPAGE_BASIS_POINTS,
+    DEFAULT_SLIPPAGE_BASIS_POINTS,
     calculatePriorityFees(priorityFeeInLamports),
   );
 

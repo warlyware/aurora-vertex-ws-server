@@ -363,8 +363,9 @@ const sendToBotManager = (message: BotMessage) => {
     let buySignature: string | undefined;
     let sendSignature: string | undefined;
 
+    const bot = session.bot;
     if (tradeType === 'BUY') {
-      logBotEvent(session.bot, {
+      logBotEvent(bot, {
         info: `Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`,
         meta: {
           price,
@@ -392,6 +393,16 @@ const sendToBotManager = (message: BotMessage) => {
         autoSellDelayInMs
       }).catch(error => {
         console.error('Error executing buy order:', error.message);
+
+        logBotEvent(bot, {
+          info: `Buy order error: ${error.message}`,
+          meta: {
+            error: error.message,
+            buySignature: buySignature,
+            sendSignature: sendSignature
+          }
+        });
+
         status.errors += 1;
         return;
       });
@@ -418,7 +429,7 @@ const sendToBotManager = (message: BotMessage) => {
 
       logToTerminal(`Buy order response: ${JSON.stringify(response?.data)}`);
     } else {
-      logBotEvent(session.bot, {
+      logBotEvent(bot, {
         info: `Attempting to sell ${amount} tokens of ${mainAction.tokenMint}`,
         meta: {
           price,

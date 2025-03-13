@@ -109,7 +109,8 @@ export function setupBuyOnPumpfunRoute(router: Router) {
       const fromPubkey = new PublicKey(publicKey);
 
       const result = await retryBuy(sdk, fromKeypair, new PublicKey(mintAddress), amountInLamports, priorityFeeInLamports);
-
+      // TODO: slippage is not failing
+      // (Program Error: "custom program error: 6002 | slippage: Too much SOL required to buy the given amount of tokens")
       console.log("Buy result", result);
 
       if (result.success) {

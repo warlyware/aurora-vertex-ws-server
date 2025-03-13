@@ -9,6 +9,7 @@ import axios from "axios";
 import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL } from "../constants";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Connection, PublicKey } from "@solana/web3.js";
+import { logServerEvent } from "../logging";
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
   BOT_STOP,
@@ -18,6 +19,8 @@ const { BOT_SPAWN,
 
 const logToTerminal = (message: string) => {
   console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} ${message}`);
+
+  logServerEvent(message);
 };
 
 // Local version of logBotEvent that sends through the IPC channel

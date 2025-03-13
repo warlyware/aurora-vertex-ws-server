@@ -23,12 +23,14 @@ let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
 const accountsToWatch = [
+  'DEcgrKvk9FdVjSUKLr6x7cyyEfW1PBVkMvLFPo65qyyY',
   'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
   '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
   '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf',
   'CotYDUwu4c3a73Hya3Tjm7u9gzmZweoKip2kQyuyhAEF',
   'HLLXwFZN9CHTct5K4YpucZ137aji27EkkJ1ZaZE7JVmk',
-  '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo'
+  '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo',
+  'BieeZkdnBAgNYknzo3RH2vku7FcPkFZMZmRJANh2TpW'
 ];
 
 const logToTerminal = (message: string) => {

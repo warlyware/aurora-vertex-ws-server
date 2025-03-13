@@ -313,7 +313,7 @@ const sendToBotManager = (message: BotMessage) => {
       return;
     }
 
-    if (tradeType === 'SELL' && !shouldCopySells) {
+    if (tradeType === 'SELL' && (!shouldCopySells && !shouldSellOnCurve && !shouldAutoSell)) {
       return;
     }
 

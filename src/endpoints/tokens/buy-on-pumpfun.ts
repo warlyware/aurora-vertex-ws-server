@@ -114,7 +114,7 @@ export function setupBuyOnPumpfunRoute(router: Router) {
 
       if (result.success) {
         if (shouldAutoSell) {
-          console.log("Auto selling tokens");
+          console.log("Auto selling tokens with delay of", autoSellDelayInMs);
 
           const balance = await getSPLBalance(sdk.connection, new PublicKey(mintAddress), fromPubkey);
 

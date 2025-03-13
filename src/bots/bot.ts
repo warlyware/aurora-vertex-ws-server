@@ -388,7 +388,8 @@ const sendToBotManager = (message: BotMessage) => {
         apiKey: AURORA_VERTEX_API_KEY,
         priorityFeeInLamports: session.strategy?.priorityFee,
         destinationAddress: (!shouldAutoSell && shouldEjectOnBuy && ejectWalletAddress) ? ejectWalletAddress : undefined,
-        shouldAutoSell
+        shouldAutoSell,
+        autoSellDelayInMs
       }).catch(error => {
         console.error('Error executing buy order:', error.message);
         status.errors += 1;

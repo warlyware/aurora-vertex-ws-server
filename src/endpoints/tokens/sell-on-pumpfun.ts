@@ -97,9 +97,15 @@ export function setupSellOnPumpfunRoute(router: Router) {
       });
     }
 
+    if (!tokenAmount) {
+      return res.status(400).json({
+        error: "Invalid token amount",
+        status: 400,
+      });
+    }
+
     if (!botId ||
       !mintAddress ||
-      !tokenAmount ||
       priorityFeeInLamports === undefined ||
       priorityFeeInLamports < 0 ||
       priorityFeeInLamports === null

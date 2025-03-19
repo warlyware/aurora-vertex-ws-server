@@ -81,6 +81,7 @@ export function setupSellOnPumpfunRoute(router: Router) {
       tokenAmount,
       apiKey,
       priorityFeeInLamports,
+      sellAll = false,
     } = req.body;
 
     console.log("Sell on pumpfun", {
@@ -88,6 +89,7 @@ export function setupSellOnPumpfunRoute(router: Router) {
       mintAddress,
       tokenAmount,
       priorityFeeInLamports,
+      sellAll,
     });
 
     if (apiKey !== AURORA_VERTEX_API_KEY) {
@@ -97,7 +99,7 @@ export function setupSellOnPumpfunRoute(router: Router) {
       });
     }
 
-    if (!tokenAmount) {
+    if (!sellAll && !tokenAmount) {
       return res.status(400).json({
         error: "Invalid token amount",
         status: 400,
@@ -122,10 +124,18 @@ export function setupSellOnPumpfunRoute(router: Router) {
       const fromPubkey = new PublicKey(publicKey);
       const mint = new PublicKey(mintAddress);
 
-      const sellAmount = BigInt(tokenAmount);
-
       const { baseAmount: currentBalance } = await getSPLBalance(sdk.connection, mint, fromPubkey);
-      if (!currentBalance || BigInt(currentBalance) < sellAmount) {
+      if (!currentBalance || BigInt(currentBalance) <= BigInt(0)) {
+        return res.status(400).json({
+          success: false,
+          error: "No token balance to sell",
+          currentBalance: currentBalance?.toString(),
+        });
+      }
+
+      const sellAmount = sellAll ? BigInt(currentBalance) : BigInt(tokenAmount);
+
+      if (!sellAll && BigInt(currentBalance) < sellAmount) {
         return res.status(400).json({
           success: false,
           error: "Insufficient token balance for sell",
@@ -137,19 +147,14 @@ export function setupSellOnPumpfunRoute(router: Router) {
       const result = await sellTokens(sdk, fromKeypair, mint, sellAmount, priorityFeeInLamports);
 
       if (result.success) {
-        // printSPLBalance(sdk.connection, mintAddress, fromPubkey);
-        // const { amount } = await getSPLBalance(sdk.connection, mint, fromPubkey);
-        // console.log("Balance after sell", amount);
-        // console.log("Bonding curve after sell", await sdk.getBondingCurveAccount(mint));
-
         res.status(200).json({
           success: true,
           sellSignature: result.signature,
+          amountSold: sellAmount.toString(),
         });
       } else {
         console.log("Sell failed", result);
 
-        // retry 2 more times
         for (let i = 0; i < 2; i++) {
           console.log("Retrying sell", i + 1);
           const result = await sellTokens(sdk, fromKeypair, mint, sellAmount, priorityFeeInLamports);
@@ -157,7 +162,9 @@ export function setupSellOnPumpfunRoute(router: Router) {
             res.status(200).json({
               success: true,
               sellSignature: result.signature,
+              amountSold: sellAmount.toString(),
             });
+            return;
           }
         }
 
@@ -177,7 +184,7 @@ export function setupSellOnPumpfunRoute(router: Router) {
         console.error('Error selling:', error);
         res.status(500).json({
           success: false,
-          error: error,
+          error: error instanceof Error ? error.message : error,
         });
       }
     }

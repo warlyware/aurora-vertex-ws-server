@@ -18,7 +18,9 @@ import { setupEventBusListeners } from "../events/bridge";
 import { setupUpdateBotSettingsRoute } from "../endpoints/bots/update-bot-settings";
 import { setupCreateWalletRoute } from "../endpoints/wallets/create-wallet";
 import { setupCreateBotRoute } from "../endpoints/bots/create-bot";
-
+import { setupBuyOnRaydiumRoute } from "../endpoints/tokens/buy-on-raydium";
+import { setupSellOnRaydiumRoute } from "../endpoints/tokens/sell-on-raydium";
+import { setupTokenOperationsRoutes } from "../endpoints/tokens/token-operations";
 const {
   GET_COIN_INFO,
   PING,
@@ -52,7 +54,10 @@ export const setupApp = () => {
   setupTransferSolRoute(router);
   setupBuyOnPumpfunRoute(router);
   setupSellOnPumpfunRoute(router);
+  setupBuyOnRaydiumRoute(router);
+  setupSellOnRaydiumRoute(router);
   setupTransferSplTokensRoute(router);
+  setupTokenOperationsRoutes(router);
   setupEventBusListeners();
   setupUpdateBotSettingsRoute(router);
   setupCreateWalletRoute(router);

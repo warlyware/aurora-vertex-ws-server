@@ -71,6 +71,8 @@ type TokenSession = {
     timestamp: number;
   }[];
   profit: number;
+  isPostBondingCurve: boolean;
+  lastVenueCheck: number;
 }
 
 const getShouldExecuteTrade = (mainAction: TxAction, session: {
@@ -117,7 +119,9 @@ const getShouldExecuteTrade = (mainAction: TxAction, session: {
         totalBought: 0,
         totalSold: 0,
         trades: [],
-        profit: 0
+        profit: 0,
+        isPostBondingCurve: false,
+        lastVenueCheck: 0
       };
     } else {
       session.tokens[mainAction.tokenMint].effectiveRatio = effectiveTradeRatio;
@@ -385,52 +389,89 @@ const sendToBotManager = (message: BotMessage) => {
 
       logToTerminal(`Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`);
 
-      const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
-        botId: payload.botId,
-        mintAddress: mainAction.tokenMint,
-        amountInLamports: amount,
-        apiKey: AURORA_VERTEX_API_KEY,
-        priorityFeeInLamports: session.strategy?.priorityFee,
-        destinationAddress: (!shouldAutoSell && shouldEjectOnBuy && ejectWalletAddress) ? ejectWalletAddress : undefined,
-        shouldAutoSell,
-        autoSellDelayInMs
-      }).catch(error => {
-        console.error('Error executing buy order:', error.message);
+      // if post bonding curve, use raydium
+      if (tokenSession?.isPostBondingCurve) {
+        logToTerminal(`Token ${mainAction.tokenMint} is post bonding curve, using raydium`);
+        // const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-raydium`, {
+        //   botId: payload.botId,
+        //   mintAddress: mainAction.tokenMint,
+        //   amountInLamports: amount,
+        //   apiKey: AURORA_VERTEX_API_KEY,
+        //   priorityFeeInLamports: session.strategy?.priorityFee,
+        // }).catch(error => {
+        //   console.error('Error executing buy order:', error.message);
+        //   status.errors += 1;
+        //   return;
+        // });
+      } else {
+        // if not post bonding curve, use pumpfun
+        const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
+          botId: payload.botId,
+          mintAddress: mainAction.tokenMint,
+          amountInLamports: amount,
+          apiKey: AURORA_VERTEX_API_KEY,
+          priorityFeeInLamports: session.strategy?.priorityFee,
+          destinationAddress: (!shouldAutoSell && shouldEjectOnBuy && ejectWalletAddress) ? ejectWalletAddress : undefined,
+          shouldAutoSell,
+          autoSellDelayInMs
+        }).catch(async (error) => {
+          if (error.response?.data?.error === "Curve is complete") {
+            if (tokenSession) {
+              tokenSession.isPostBondingCurve = true;
+              logBotEvent(bot, {
+                info: `Token ${mainAction.tokenMint} is now post bonding curve, retrying on Raydium`,
+              });
 
-        logBotEvent(bot, {
-          info: `Buy order error: ${error.message}`,
+              // Retry on Raydium
+              const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-raydium`, {
+                botId: payload.botId,
+                mintAddress: mainAction.tokenMint,
+                amountInLamports: amount,
+                apiKey: AURORA_VERTEX_API_KEY,
+                priorityFeeInLamports: session.strategy?.priorityFee,
+                destinationAddress: (!shouldAutoSell && shouldEjectOnBuy && ejectWalletAddress) ? ejectWalletAddress : undefined,
+                shouldAutoSell,
+                autoSellDelayInMs
+              });
+            }
+          }
+          console.error('Error executing buy order:', error.message);
+
+          logBotEvent(bot, {
+            info: `Buy order error: ${error.message}`,
+            meta: {
+              error: error.message,
+              buySignature: buySignature,
+              sendSignature: sendSignature
+            }
+          });
+
+          status.errors += 1;
+          return;
+        });
+
+        if (response?.data?.buySignature) {
+          buySignature = response.data.buySignature;
+        }
+
+        if (response?.data?.sendSignature) {
+          sendSignature = response.data.sendSignature;
+        }
+
+        logBotEvent(session.bot, {
+          info: `Buy order response: ${JSON.stringify(response?.data)}`,
           meta: {
-            error: error.message,
-            buySignature: buySignature,
-            sendSignature: sendSignature
+            response: response?.data,
+            buySignature: response?.data?.buySignature,
+            sendSignature: response?.data?.sendSignature,
+            mintAddress: mainAction.tokenMint,
+            amountInLamports: amount,
+            destinationAddress: shouldEjectOnBuy && ejectWalletAddress ? ejectWalletAddress : undefined
           }
         });
 
-        status.errors += 1;
-        return;
-      });
-
-      if (response?.data?.buySignature) {
-        buySignature = response.data.buySignature;
+        logToTerminal(`Buy order response: ${JSON.stringify(response?.data)}`);
       }
-
-      if (response?.data?.sendSignature) {
-        sendSignature = response.data.sendSignature;
-      }
-
-      logBotEvent(session.bot, {
-        info: `Buy order response: ${JSON.stringify(response?.data)}`,
-        meta: {
-          response: response?.data,
-          buySignature: response?.data?.buySignature,
-          sendSignature: response?.data?.sendSignature,
-          mintAddress: mainAction.tokenMint,
-          amountInLamports: amount,
-          destinationAddress: shouldEjectOnBuy && ejectWalletAddress ? ejectWalletAddress : undefined
-        }
-      });
-
-      logToTerminal(`Buy order response: ${JSON.stringify(response?.data)}`);
     } else {
       logBotEvent(bot, {
         info: `Attempting to sell ${amount} tokens of ${mainAction.tokenMint}`,
@@ -442,29 +483,41 @@ const sendToBotManager = (message: BotMessage) => {
         }
       });
 
-      const response = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
-        botId: payload.botId,
-        mintAddress: mainAction.tokenMint,
-        tokenAmount: amount,
-        apiKey: AURORA_VERTEX_API_KEY,
-        priorityFeeInLamports: session.strategy?.priorityFee
-      }).catch(error => {
-        console.error('Error executing sell order:', error.message);
-        status.errors += 1;
-        return;
-      });
-
-      console.log("Sell order response", response?.data);
-
-      logBotEvent(session.bot, {
-        info: `Sell order response: ${JSON.stringify(response?.data)}`,
-        meta: {
-          response: response?.data,
-          sellSignature: response?.data?.sellSignature,
+      if (tokenSession?.isPostBondingCurve) {
+        logToTerminal(`Token ${mainAction.tokenMint} is post bonding curve, using raydium`);
+      } else {
+        const response = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
+          botId: payload.botId,
           mintAddress: mainAction.tokenMint,
           tokenAmount: amount,
-        }
-      });
+          apiKey: AURORA_VERTEX_API_KEY,
+          priorityFeeInLamports: session.strategy?.priorityFee
+        }).catch(error => {
+          if (error.response?.data?.error === "Curve is complete") {
+            if (tokenSession) {
+              tokenSession.isPostBondingCurve = true;
+              logBotEvent(bot, {
+                info: `Token ${mainAction.tokenMint} is now post bonding curve`,
+              });
+            }
+          }
+          console.error('Error executing sell order:', error.message);
+          status.errors += 1;
+          return;
+        });
+
+        console.log("Sell order response", response?.data);
+
+        logBotEvent(session.bot, {
+          info: `Sell order response: ${JSON.stringify(response?.data)}`,
+          meta: {
+            response: response?.data,
+            sellSignature: response?.data?.sellSignature,
+            mintAddress: mainAction.tokenMint,
+            tokenAmount: amount,
+          }
+        });
+      }
     }
 
     updateStats({

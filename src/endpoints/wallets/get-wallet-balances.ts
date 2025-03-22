@@ -80,7 +80,6 @@ export function setupWalletBalancesRoute(router: Router) {
     async function getTokenMetadata(mint: string) {
       try {
         const info = await getCoinInfo(mint)
-        console.log({ info });
         return info;
       } catch (error) {
         console.error(`Error fetching metadata for ${mint}:`, error);
@@ -115,7 +114,6 @@ export function setupWalletBalancesRoute(router: Router) {
 
       const balances: TokenBalance[] = await Promise.all(value.map(async (tokenAccount) => {
         const metadata = await getTokenMetadata(tokenAccount.account.data.parsed.info.mint);
-        console.log(JSON.stringify(metadata, null, 2));
 
         return {
           tokenAccount: tokenAccount.pubkey,

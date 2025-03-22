@@ -390,6 +390,10 @@ const sendToBotManager = (message: BotMessage) => {
 
       logToTerminal(`Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}`);
 
+      if (shouldEjectOnBuy) {
+        // need to play pre-buy sound here
+      }
+
       const response = await axios.post(`${AURORA_VERTEX_API_URL}/buy-token`, {
         botId: payload.botId,
         mintAddress: mainAction.tokenMint,

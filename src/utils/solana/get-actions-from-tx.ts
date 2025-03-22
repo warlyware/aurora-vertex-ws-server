@@ -13,7 +13,7 @@ const PUMPFUN_FEE_COLLECTION_ACCOUNT = 'CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4x
 const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 export type TxAction = {
-  type: 'PUMPFUN_BUY' | 'PUMPFUN_SELL' | 'RAYDIUM_BUY' | 'RAYDIUM_SELL' | 'TOKEN_TRANSFER' | 'SOL_TRANSFER';
+  type: 'PUMPFUN_BUY' | 'PUMPFUN_SELL' | 'RAYDIUM_BUY' | 'RAYDIUM_SELL' | 'TOKEN_TRANSFER' | 'SOL_TRANSFER' | 'FEE_COLLECTION';
   source: string;
   destination?: string;
   solAmount?: number;    // For SOL transfers and swaps
@@ -22,6 +22,50 @@ export type TxAction = {
   description: string;
   rawInfo?: any;
   solChange?: number;
+  destinations?: string[]; // For fee collection transactions with multiple destinations
+}
+
+interface SystemTransferInfo {
+  source: string;
+  destination: string;
+  lamports: number;
+}
+
+interface TokenTransferInfo {
+  source: string;
+  destination: string;
+  amount: string;
+  authority: string;
+}
+
+interface ParsedInstruction {
+  programId: string;
+  parsed?: {
+    type: string;
+    info: SystemTransferInfo | TokenTransferInfo;
+  };
+}
+
+interface SystemInstruction extends ParsedInstruction {
+  parsed?: {
+    type: 'transfer';
+    info: SystemTransferInfo;
+  };
+}
+
+interface TokenInstruction extends ParsedInstruction {
+  parsed?: {
+    type: 'transfer';
+    info: TokenTransferInfo;
+  };
+}
+
+function isSystemTransferInfo(info: any): info is SystemTransferInfo {
+  return 'lamports' in info;
+}
+
+function isTokenTransferInfo(info: any): info is TokenTransferInfo {
+  return 'amount' in info && 'authority' in info;
 }
 
 export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): TxAction[] => {
@@ -30,10 +74,42 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
 
   if (!result?.transaction?.transaction?.message?.instructions) return actions;
 
-  const mainInstructions = result.transaction.transaction.message.instructions;
+  const mainInstructions = result.transaction.transaction.message.instructions as ParsedInstruction[];
   const innerInstructions = result.transaction.meta?.innerInstructions || [];
   const accountKeys = result.transaction.transaction.message.accountKeys;
   const logs = result.transaction.meta?.logMessages || [];
+
+  // Check for fee collection pattern (multiple 1-lamport transfers)
+  const systemTransfers = mainInstructions.filter((ix): ix is SystemInstruction =>
+    ix.programId === SYSTEM_PROGRAM_ID &&
+    ix.parsed?.type === 'transfer' &&
+    ix.parsed.info &&
+    isSystemTransferInfo(ix.parsed.info)
+  );
+
+  if (systemTransfers.length > 10) {
+    const allOneLamport = systemTransfers.every(ix => ix.parsed!.info.lamports === 1);
+    const firstSource = systemTransfers[0]?.parsed?.info.source;
+    const sameSource = firstSource && systemTransfers.every(ix =>
+      ix.parsed!.info.source === firstSource
+    );
+
+    if (allOneLamport && sameSource) {
+      console.log('Detected fee collection transaction');
+      const destinations = systemTransfers.map(ix => ix.parsed!.info.destination);
+
+      actions.push({
+        type: 'FEE_COLLECTION',
+        source: firstSource,
+        destinations,
+        solAmount: systemTransfers.length * 0.000000001,
+        description: `${getAbbreviatedAddress(firstSource)} sent 1 lamport to ${systemTransfers.length} addresses for fee collection`,
+        rawInfo: { systemTransfers }
+      });
+
+      return actions;
+    }
+  }
 
   // Find any instruction set (main or inner) that contains a Raydium swap
   const findRaydiumIx = (instructions: any[]) =>
@@ -65,40 +141,118 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
     // Get token balances for the trader
     const preTokenBalances = result.transaction.meta?.preTokenBalances || [];
     const postTokenBalances = result.transaction.meta?.postTokenBalances || [];
+
+    console.log('Debug Raydium transaction:');
+    console.log('SOL change:', solChange);
+    console.log('Pre token balances:', JSON.stringify(preTokenBalances, null, 2));
+    console.log('Post token balances:', JSON.stringify(postTokenBalances, null, 2));
+
     const tokenBalanceChanges = postTokenBalances.map(post => {
       const pre = preTokenBalances.find(pre => pre.mint === post.mint);
-      return {
+      const change = {
         mint: post.mint,
-        change: post.uiTokenAmount.uiAmount - (pre?.uiTokenAmount.uiAmount || 0)
+        change: post.uiTokenAmount.uiAmount - (pre?.uiTokenAmount.uiAmount || 0),
+        preAmount: pre?.uiTokenAmount.uiAmount || 0,
+        postAmount: post.uiTokenAmount.uiAmount
       };
+      console.log('Token balance change:', JSON.stringify(change, null, 2));
+      return change;
     }).filter(change => change.change !== 0);
 
-    const boughtToken = tokenBalanceChanges.find(change => change.change > 0);
-    const soldToken = tokenBalanceChanges.find(change => change.change < 0);
+    // Find the most significant token changes (ignoring small fee-related changes)
+    const significantChanges = tokenBalanceChanges
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+      .slice(0, 2);
 
-    // If we're buying a token with SOL
-    if (Math.abs(solChange) > 0 && boughtToken) {
-      actions.push({
-        type: 'RAYDIUM_BUY',
-        source: trader,
+    console.log('Significant changes:', JSON.stringify(significantChanges, null, 2));
+
+    // The largest change by magnitude should be the main token being traded
+    const mainTokenChange = significantChanges[0];
+    // The second largest should be the other side of the trade (SOL or other token)
+    const secondaryTokenChange = significantChanges[1];
+
+    if (!mainTokenChange || !secondaryTokenChange) {
+      console.log('Not enough significant token changes found');
+    } else {
+      console.log('Full transaction analysis:', {
         solChange,
-        tokenAmount: Math.abs(boughtToken.change),
-        tokenMint: boughtToken.mint,
-        description: `${getAbbreviatedAddress(trader)} bought ${Math.abs(boughtToken.change)} ${getAbbreviatedAddress(boughtToken.mint)} for ${Math.abs(solChange)} SOL`,
-        rawInfo: { tokenTransfers, tokenBalanceChanges }
+        mainTokenChange,
+        secondaryTokenChange,
+        allTokenChanges: tokenBalanceChanges,
+        trader,
+        preBalance,
+        postBalance
       });
-    }
-    // If we're selling a token for SOL
-    else if (Math.abs(solChange) > 0 && soldToken) {
-      actions.push({
-        type: 'RAYDIUM_SELL',
-        source: trader,
+
+      // Find all token accounts owned by the trader
+      const userPreTokenAccounts = preTokenBalances.filter(balance => balance.owner === trader);
+      const userPostTokenAccounts = postTokenBalances.filter(balance => balance.owner === trader);
+
+      // Calculate changes for each of the user's token accounts
+      const userTokenChanges = userPreTokenAccounts.map(preAccount => {
+        const postAccount = userPostTokenAccounts.find(post => post.mint === preAccount.mint);
+        return {
+          mint: preAccount.mint,
+          preAmount: preAccount.uiTokenAmount.uiAmount,
+          postAmount: postAccount?.uiTokenAmount.uiAmount || 0,
+          change: (postAccount?.uiTokenAmount.uiAmount || 0) - preAccount.uiTokenAmount.uiAmount
+        };
+      });
+
+      // Also check for any new token accounts that didn't exist before
+      const newTokenAccounts = userPostTokenAccounts.filter(post =>
+        !userPreTokenAccounts.some(pre => pre.mint === post.mint)
+      ).map(post => ({
+        mint: post.mint,
+        preAmount: 0,
+        postAmount: post.uiTokenAmount.uiAmount,
+        change: post.uiTokenAmount.uiAmount
+      }));
+
+      const allUserChanges = [...userTokenChanges, ...newTokenAccounts];
+
+      // Find the most significant change in the user's token accounts
+      const mainUserChange = allUserChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0];
+
+      console.log('User token changes:', {
+        allChanges: allUserChanges,
+        mainChange: mainUserChange
+      });
+
+      // For a buy: user's token balance for the traded token increases
+      // For a sell: user's token balance for the traded token decreases
+      const isBuy = mainUserChange && mainUserChange.change > 0;
+
+      console.log('Trade detection:', {
         solChange,
-        tokenAmount: Math.abs(soldToken.change),
-        tokenMint: soldToken.mint,
-        description: `${getAbbreviatedAddress(trader)} sold ${Math.abs(soldToken.change)} ${getAbbreviatedAddress(soldToken.mint)} for ${Math.abs(solChange)} SOL`,
-        rawInfo: { tokenTransfers, tokenBalanceChanges }
+        mainUserChange,
+        isBuy,
+        reasoning: `User's main token change is ${mainUserChange?.change} (${isBuy ? 'positive = buy' : 'negative = sell'})`
       });
+
+      if (isBuy) {
+        console.log('Detected Raydium buy - user token balance increased');
+        actions.push({
+          type: 'RAYDIUM_BUY',
+          source: trader,
+          solChange,
+          tokenAmount: Math.abs(mainUserChange.change),
+          tokenMint: mainUserChange.mint,
+          description: `${getAbbreviatedAddress(trader)} bought ${Math.abs(mainUserChange.change)} ${getAbbreviatedAddress(mainUserChange.mint)} for ${Math.abs(solChange)} SOL`,
+          rawInfo: { tokenTransfers, tokenBalanceChanges }
+        });
+      } else {
+        console.log('Detected Raydium sell - user token balance decreased');
+        actions.push({
+          type: 'RAYDIUM_SELL',
+          source: trader,
+          solChange,
+          tokenAmount: Math.abs(mainUserChange.change),
+          tokenMint: mainUserChange.mint,
+          description: `${getAbbreviatedAddress(trader)} sold ${Math.abs(mainUserChange.change)} ${getAbbreviatedAddress(mainUserChange.mint)} for ${Math.abs(solChange)} SOL`,
+          rawInfo: { tokenTransfers, tokenBalanceChanges }
+        });
+      }
     }
   }
 
@@ -152,7 +306,10 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
   }
 
   mainInstructions.forEach(ix => {
-    if (ix.programId === TOKEN_PROGRAM_ID && ix.parsed?.type === 'transfer') {
+    if (ix.programId === TOKEN_PROGRAM_ID &&
+      ix.parsed?.type === 'transfer' &&
+      ix.parsed.info &&
+      isTokenTransferInfo(ix.parsed.info)) {
       const { source, destination, amount, authority } = ix.parsed.info;
       const tokenMint = result.transaction.meta?.preTokenBalances?.find(
         balance => balance.accountIndex === accountKeys.findIndex(key => key.pubkey === source)
@@ -181,8 +338,10 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
         });
       }
     }
-    // Process SOL transfers
-    else if (ix.programId === SYSTEM_PROGRAM_ID && ix.parsed?.type === 'transfer') {
+    else if (ix.programId === SYSTEM_PROGRAM_ID &&
+      ix.parsed?.type === 'transfer' &&
+      ix.parsed.info &&
+      isSystemTransferInfo(ix.parsed.info)) {
       const { source, destination, lamports } = ix.parsed.info;
       const solAmount = lamports / LAMPORTS_PER_SOL;
 

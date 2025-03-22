@@ -339,9 +339,9 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
         ...messageObj
       };
 
-      logToTerminal(
-        `Received transaction ${messageObj.params.result.signature}, JSON: ${JSON.stringify(payloadWithTimestamp, null, 2)}`
-      );
+      // logToTerminal(
+      //   `Received transaction ${messageObj.params.result.signature}, JSON: ${JSON.stringify(payloadWithTimestamp, null, 2)}`
+      // );
       logServerEvent(`Caching transaction ${messageObj.params.result.signature}`);
       storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
       lastReceivedTxTimestamp = Date.now();

@@ -35,6 +35,7 @@ const accountsToWatch = [
   '5beKNXbj1VfJyceBtXEsEnfHmAxyZAbAvkfmJHRMYXvF',
   'CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o',
   'BZKGRtZESRXns1b2KbQohKPjUTqTkHBZdGZ7C9U6LfoZ',
+  'HzjAQUKjZcT3ESZ9WNbJeXqvzZYxvy3VGquwQ9mX2c92',
 ];
 
 const logToTerminal = (message: string) => {

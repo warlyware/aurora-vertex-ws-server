@@ -1,7 +1,7 @@
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getKeysFromDb } from "../../utils/wallets";
 import { Router, Request, Response } from "express";
-import { AURORA_VERTEX_API_KEY } from "../../constants";
+import { AURORA_VERTEX_API_KEY, RPC_ENDPOINT } from "../../constants";
 import { getSPLBalance } from "../../utils/solana";
 import axios from "axios";
 
@@ -126,7 +126,7 @@ export function setupSellOnRaydiumRoute(router: Router) {
       const mint = new PublicKey(mintAddress);
 
       // Get current balance
-      const connection = new Connection('https://api.mainnet-beta.solana.com');
+      const connection = new Connection(RPC_ENDPOINT);
       const { baseAmount: currentBalance } = await getSPLBalance(connection, mint, fromPubkey);
 
       if (!currentBalance || BigInt(currentBalance) <= BigInt(0)) {
@@ -173,6 +173,99 @@ export function setupSellOnRaydiumRoute(router: Router) {
       }
     } catch (error) {
       console.error('Error selling:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  });
+
+  router.post('/sell-all-on-raydium', async (req: Request, res: Response) => {
+    const {
+      botId,
+      apiKey,
+      priorityFeeInLamports,
+    } = req.body;
+
+    console.log("Sell all on raydium", {
+      botId,
+      priorityFeeInLamports,
+    });
+
+    if (apiKey !== AURORA_VERTEX_API_KEY) {
+      return res.status(401).json({
+        error: "Invalid API key",
+        status: 401,
+      });
+    }
+
+    if (!botId ||
+      priorityFeeInLamports === undefined ||
+      priorityFeeInLamports < 0 ||
+      priorityFeeInLamports === null
+    ) {
+      return res.status(400).json({
+        error: "Missing required parameters",
+        status: 400,
+      });
+    }
+
+    try {
+      const { keypair: fromKeypair, publicKey } = await getKeysFromDb(botId);
+      const fromPubkey = new PublicKey(publicKey);
+      const connection = new Connection(RPC_ENDPOINT);
+
+      // Get all token accounts
+      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+        fromPubkey,
+        { programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') }
+      );
+
+      const results = [];
+      for (const account of tokenAccounts.value) {
+        const tokenBalance = BigInt(account.account.data.parsed.info.tokenAmount.amount);
+        const mint = new PublicKey(account.account.data.parsed.info.mint);
+
+        if (tokenBalance > 0n) {
+          try {
+            const result = await executeRaydiumSell(
+              fromKeypair,
+              mint.toString(),
+              tokenBalance.toString(),
+              DEFAULT_SLIPPAGE
+            );
+
+            results.push({
+              mint: mint.toString(),
+              amount: tokenBalance.toString(),
+              success: result.success,
+              signature: result.signature,
+            });
+          } catch (error) {
+            results.push({
+              mint: mint.toString(),
+              amount: tokenBalance.toString(),
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+      }
+
+      const successfulSells = results.filter(r => r.success);
+      const failedSells = results.filter(r => !r.success);
+
+      res.status(200).json({
+        success: true,
+        results: {
+          successful: successfulSells,
+          failed: failedSells,
+          totalSuccessful: successfulSells.length,
+          totalFailed: failedSells.length,
+        }
+      });
+    } catch (error) {
+      console.error('Error selling all tokens:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : error,

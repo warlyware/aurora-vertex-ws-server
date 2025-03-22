@@ -23,14 +23,15 @@ let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
 const accountsToWatch = [
-  'DEcgrKvk9FdVjSUKLr6x7cyyEfW1PBVkMvLFPo65qyyY',
-  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
-  '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
-  '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf',
-  'CotYDUwu4c3a73Hya3Tjm7u9gzmZweoKip2kQyuyhAEF',
-  'HLLXwFZN9CHTct5K4YpucZ137aji27EkkJ1ZaZE7JVmk',
-  '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo',
-  'BieeZkdnBAgNYknzo3RH2vku7FcPkFZMZmRJANh2TpW'
+  // 'DEcgrKvk9FdVjSUKLr6x7cyyEfW1PBVkMvLFPo65qyyY',
+  // 'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
+  // '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
+  // '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf',
+  // 'CotYDUwu4c3a73Hya3Tjm7u9gzmZweoKip2kQyuyhAEF',
+  // 'HLLXwFZN9CHTct5K4YpucZ137aji27EkkJ1ZaZE7JVmk',
+  // '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo',
+  // 'BieeZkdnBAgNYknzo3RH2vku7FcPkFZMZmRJANh2TpW',
+  '5beKNXbj1VfJyceBtXEsEnfHmAxyZAbAvkfmJHRMYXvF',
 ];
 
 const logToTerminal = (message: string) => {
@@ -338,6 +339,9 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
         ...messageObj
       };
 
+      logToTerminal(
+        `Received transaction ${messageObj.params.result.signature}, JSON: ${JSON.stringify(payloadWithTimestamp, null, 2)}`
+      );
       logServerEvent(`Caching transaction ${messageObj.params.result.signature}`);
       storeTransaction(messageObj.params.result.signature, payloadWithTimestamp);
       lastReceivedTxTimestamp = Date.now();

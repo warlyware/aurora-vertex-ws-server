@@ -13,7 +13,7 @@ const PUMPFUN_FEE_COLLECTION_ACCOUNT = 'CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4x
 const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 export type TxAction = {
-  type: 'PUMPFUN_BUY' | 'PUMPFUN_SELL' | 'RAYDIUM_SWAP' | 'TOKEN_TRANSFER' | 'SOL_TRANSFER';
+  type: 'PUMPFUN_BUY' | 'PUMPFUN_SELL' | 'RAYDIUM_BUY' | 'RAYDIUM_SELL' | 'TOKEN_TRANSFER' | 'SOL_TRANSFER';
   source: string;
   destination?: string;
   solAmount?: number;    // For SOL transfers and swaps
@@ -23,49 +23,6 @@ export type TxAction = {
   rawInfo?: any;
   solChange?: number;
 }
-
-const handleRaydiumSwap = (result: any): TxAction => {
-  const innerInstructions = result.transaction.meta?.innerInstructions?.map((ix: any) => ix.instructions).flat();
-  const accountKeys = result.transaction.transaction.message.accountKeys;
-
-  const txOwner = accountKeys[0]?.pubkey;
-  const ownerPostTokenBalances = result.transaction.meta?.postTokenBalances.filter(
-    (balance: any) => balance.owner === txOwner
-  );
-
-  const swapIxs = innerInstructions
-    .filter((ix: any) => ix?.parsed?.type === 'transfer')
-    .filter((ix: any) => ix?.parsed?.info?.destination !== RAYDIUM_FEE_COLLECTION_ACCOUNT);
-
-  const getAccountDataSizeIx = innerInstructions.find((ix: any) => ix?.parsed?.type === 'getAccountDataSize');
-  const createAccountIx = innerInstructions.find((ix: any) => ix?.parsed?.type === 'createAccount');
-
-  const splMint = getAccountDataSizeIx?.parsed?.info?.mint || ownerPostTokenBalances?.[0]?.mint;
-  const ata = createAccountIx?.parsed?.info?.newAccount;
-
-  const ownerPartOfSwap = swapIxs.find((ix: any) => ix?.parsed?.info?.authority === txOwner);
-  const otherPartOfSwap = swapIxs.find((ix: any) => ix?.parsed?.info?.authority !== txOwner);
-  const splTokenAmount = ownerPartOfSwap?.parsed?.info?.amount;
-  const lamportAmount = otherPartOfSwap?.parsed?.info?.amount / LAMPORTS_PER_SOL;
-
-  // TODO: Fix this
-  return {
-    type: 'RAYDIUM_SWAP',
-    source: txOwner,
-    destination: txOwner,
-    solAmount: lamportAmount,
-    tokenAmount: splTokenAmount,
-    tokenMint: splMint,
-    description: `WRONG: ${getAbbreviatedAddress(txOwner)} swapped ${splTokenAmount} ${getAbbreviatedAddress(splMint)} for ${lamportAmount} SOL`,
-    rawInfo: {
-      ownerPostTokenBalances,
-      splMint,
-      splTokenAmount,
-      lamportAmount,
-      txOwner
-    }
-  };
-};
 
 export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): TxAction[] => {
   const actions: TxAction[] = [];
@@ -77,6 +34,73 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
   const innerInstructions = result.transaction.meta?.innerInstructions || [];
   const accountKeys = result.transaction.transaction.message.accountKeys;
   const logs = result.transaction.meta?.logMessages || [];
+
+  // Find any instruction set (main or inner) that contains a Raydium swap
+  const findRaydiumIx = (instructions: any[]) =>
+    instructions.find(ix => ix.programId === RAYDIUM_V4_SWAP_PROGRAM_ID);
+
+  // Look in main instructions
+  const mainRaydiumIx = findRaydiumIx(mainInstructions);
+
+  // Look in inner instructions
+  const innerRaydiumSet = innerInstructions.find(ixSet =>
+    findRaydiumIx(ixSet.instructions)
+  );
+
+  if (mainRaydiumIx || innerRaydiumSet) {
+    console.log('Found Raydium instruction');
+    const trader = accountKeys[0].pubkey;
+    const preBalance = result.transaction.meta?.preBalances[0] || 0;
+    const postBalance = result.transaction.meta?.postBalances[0] || 0;
+    const solChange = (postBalance - preBalance) / LAMPORTS_PER_SOL;
+
+    // Find token transfer in inner instructions
+    const tokenTransfers = innerInstructions
+      .flatMap(ixSet => ixSet.instructions)
+      .filter(ix =>
+        ix.programId === TOKEN_PROGRAM_ID &&
+        ix.parsed?.type === 'transfer'
+      );
+
+    // Get token balances for the trader
+    const preTokenBalances = result.transaction.meta?.preTokenBalances || [];
+    const postTokenBalances = result.transaction.meta?.postTokenBalances || [];
+    const tokenBalanceChanges = postTokenBalances.map(post => {
+      const pre = preTokenBalances.find(pre => pre.mint === post.mint);
+      return {
+        mint: post.mint,
+        change: post.uiTokenAmount.uiAmount - (pre?.uiTokenAmount.uiAmount || 0)
+      };
+    }).filter(change => change.change !== 0);
+
+    const boughtToken = tokenBalanceChanges.find(change => change.change > 0);
+    const soldToken = tokenBalanceChanges.find(change => change.change < 0);
+
+    // If we're buying a token with SOL
+    if (Math.abs(solChange) > 0 && boughtToken) {
+      actions.push({
+        type: 'RAYDIUM_BUY',
+        source: trader,
+        solChange,
+        tokenAmount: Math.abs(boughtToken.change),
+        tokenMint: boughtToken.mint,
+        description: `${getAbbreviatedAddress(trader)} bought ${Math.abs(boughtToken.change)} ${getAbbreviatedAddress(boughtToken.mint)} for ${Math.abs(solChange)} SOL`,
+        rawInfo: { tokenTransfers, tokenBalanceChanges }
+      });
+    }
+    // If we're selling a token for SOL
+    else if (Math.abs(solChange) > 0 && soldToken) {
+      actions.push({
+        type: 'RAYDIUM_SELL',
+        source: trader,
+        solChange,
+        tokenAmount: Math.abs(soldToken.change),
+        tokenMint: soldToken.mint,
+        description: `${getAbbreviatedAddress(trader)} sold ${Math.abs(soldToken.change)} ${getAbbreviatedAddress(soldToken.mint)} for ${Math.abs(solChange)} SOL`,
+        rawInfo: { tokenTransfers, tokenBalanceChanges }
+      });
+    }
+  }
 
   // Find any instruction set (main or inner) that contains a Pumpfun program call
   const findPumpfunIx = (instructions: any[]) =>
@@ -91,10 +115,12 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
   );
 
   if (mainPumpfunIx || innerPumpfunSet) {
+    console.log('Found PumpFun instruction');
     const isSell = logs.some(log => log.includes('Instruction: Sell'));
     const isBuy = logs.some(log => log.includes('Instruction: Buy'));
 
     if (isSell || isBuy) {
+      console.log(`PumpFun action type: ${isBuy ? 'PUMPFUN_BUY' : 'PUMPFUN_SELL'}`);
       const trader = accountKeys[0].pubkey;
       const preBalance = result.transaction.meta?.preBalances[0] || 0;
       const postBalance = result.transaction.meta?.postBalances[0] || 0;
@@ -176,6 +202,9 @@ export const getActionsFromTx = (event: SolanaTxNotificationFromHeliusEvent): Tx
       });
     }
   });
+
+  // Add debug log for final actions
+  console.log('Final actions:', actions.map(a => a.type));
 
   return actions;
 };

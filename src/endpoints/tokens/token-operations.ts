@@ -24,6 +24,7 @@ export function setupTokenOperationsRoutes(router: Router) {
       destinationAddress,
       shouldAutoSell,
       autoSellDelayInMs,
+      isPostBondingCurve = false,
     } = req.body;
 
     if (apiKey !== AURORA_VERTEX_API_KEY) {
@@ -41,7 +42,23 @@ export function setupTokenOperationsRoutes(router: Router) {
     }
 
     try {
-      // First try PumpFun
+      // If we know it's post bonding curve, go straight to Raydium
+      if (isPostBondingCurve) {
+        const raydiumResponse = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-raydium`, {
+          botId,
+          mintAddress,
+          amountInLamports,
+          apiKey,
+          priorityFeeInLamports,
+          destinationAddress,
+          shouldAutoSell,
+          autoSellDelayInMs,
+        });
+
+        return res.status(200).json(raydiumResponse.data);
+      }
+
+      // Otherwise try PumpFun first
       const pumpFunResponse = await axios.post(`${AURORA_VERTEX_API_URL}/buy-on-pumpfun`, {
         botId,
         mintAddress,
@@ -52,7 +69,6 @@ export function setupTokenOperationsRoutes(router: Router) {
         shouldAutoSell,
         autoSellDelayInMs,
       }).catch(async (error) => {
-        // If PumpFun fails with "Curve is complete", try Raydium
         if (error.response?.data?.error === "Curve is complete") {
           console.log("Token is post bonding curve, trying Raydium");
 
@@ -90,6 +106,7 @@ export function setupTokenOperationsRoutes(router: Router) {
       apiKey,
       priorityFeeInLamports,
       sellAll = false,
+      isPostBondingCurve = false,
     } = req.body;
 
     if (apiKey !== AURORA_VERTEX_API_KEY) {
@@ -114,7 +131,21 @@ export function setupTokenOperationsRoutes(router: Router) {
     }
 
     try {
-      // First try PumpFun
+      // If we know it's post bonding curve, go straight to Raydium
+      if (isPostBondingCurve) {
+        const raydiumResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-raydium`, {
+          botId,
+          mintAddress,
+          tokenAmount,
+          apiKey,
+          priorityFeeInLamports,
+          sellAll,
+        });
+
+        return res.status(200).json(raydiumResponse.data);
+      }
+
+      // Otherwise try PumpFun first
       const pumpFunResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-on-pumpfun`, {
         botId,
         mintAddress,
@@ -123,8 +154,6 @@ export function setupTokenOperationsRoutes(router: Router) {
         priorityFeeInLamports,
         sellAll,
       }).catch(async (error) => {
-        // If PumpFun fails with "Curve is complete", try Raydium
-        console.log("PumpFun error", error.response?.data);
         if (error.response?.data?.error === "Curve is complete") {
           console.log("Token is post bonding curve, trying Raydium");
 
@@ -137,20 +166,82 @@ export function setupTokenOperationsRoutes(router: Router) {
             sellAll,
           });
 
-          return {
-            ...raydiumResponse.data,
-            venue: "raydium",
-          };
+          return raydiumResponse;
         }
         throw error;
       });
 
-      res.status(200).json({
-        ...pumpFunResponse,
-        venue: "pumpfun",
-      });
+      res.status(200).json(pumpFunResponse.data);
     } catch (error) {
       console.error('Error selling token:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  });
+
+  router.post('/sell-all-tokens', async (req: Request, res: Response) => {
+    const {
+      botId,
+      apiKey,
+      priorityFeeInLamports,
+      isPostBondingCurve = false,
+    } = req.body;
+
+    if (apiKey !== AURORA_VERTEX_API_KEY) {
+      return res.status(401).json({
+        error: "Invalid API key",
+        status: 401,
+      });
+    }
+
+    if (!botId ||
+      priorityFeeInLamports === undefined ||
+      priorityFeeInLamports < 0 ||
+      priorityFeeInLamports === null
+    ) {
+      return res.status(400).json({
+        error: "Missing required parameters",
+        status: 400,
+      });
+    }
+
+    try {
+      // If we know it's post bonding curve, go straight to Raydium
+      if (isPostBondingCurve) {
+        const raydiumResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-all-on-raydium`, {
+          botId,
+          apiKey,
+          priorityFeeInLamports,
+        });
+
+        return res.status(200).json(raydiumResponse.data);
+      }
+
+      // Otherwise try PumpFun first
+      const pumpFunResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-all-on-pumpfun`, {
+        botId,
+        apiKey,
+        priorityFeeInLamports,
+      }).catch(async (error) => {
+        if (error.response?.data?.error === "Curve is complete") {
+          console.log("Token is post bonding curve, trying Raydium");
+
+          const raydiumResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-all-on-raydium`, {
+            botId,
+            apiKey,
+            priorityFeeInLamports,
+          });
+
+          return raydiumResponse;
+        }
+        throw error;
+      });
+
+      res.status(200).json(pumpFunResponse.data);
+    } catch (error) {
+      console.error('Error selling all tokens:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : error,

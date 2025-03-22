@@ -1,7 +1,7 @@
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getKeysFromDb } from "../../utils/wallets";
 import { Router, Request, Response } from "express";
-import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL } from "../../constants";
+import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL, RPC_ENDPOINT } from "../../constants";
 import { getSPLBalance } from "../../utils/solana";
 import axios from "axios";
 import { sendSplTokens } from "../../utils/tokens";
@@ -124,7 +124,7 @@ export function setupBuyOnRaydiumRoute(router: Router) {
 
       if (result.success) {
         if (shouldAutoSell) {
-          const connection = new Connection('https://api.mainnet-beta.solana.com');
+          const connection = new Connection(RPC_ENDPOINT);
           const balance = await getSPLBalance(connection, new PublicKey(mintAddress), fromPubkey);
           console.log('Balance', balance);
 
@@ -152,7 +152,7 @@ export function setupBuyOnRaydiumRoute(router: Router) {
           const toPubkey = new PublicKey(destinationAddress);
           const mint = new PublicKey(mintAddress);
 
-          const connection = new Connection('https://api.mainnet-beta.solana.com');
+          const connection = new Connection(RPC_ENDPOINT);
           const balance = await getSPLBalance(connection, mint, fromPubkey);
           console.log("Balance after buy", balance.amount, balance.baseAmount);
 

@@ -13,6 +13,21 @@ const isTokenOnRaydium = async (mintAddress: string): Promise<boolean> => {
   return false;
 };
 
+interface TokenSaleResult {
+  mint: string;
+  amount: string;
+  success: boolean;
+  error?: string;
+  signature?: string;
+}
+
+interface SaleResults {
+  successful: TokenSaleResult[];
+  failed: TokenSaleResult[];
+  totalSuccessful: number;
+  totalFailed: number;
+}
+
 export function setupTokenOperationsRoutes(router: Router) {
   router.post('/buy-token', async (req: Request, res: Response) => {
     const {
@@ -219,27 +234,62 @@ export function setupTokenOperationsRoutes(router: Router) {
         return res.status(200).json(raydiumResponse.data);
       }
 
-      // Otherwise try PumpFun first
+      // Try PumpFun first
       const pumpFunResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-all-on-pumpfun`, {
         botId,
         apiKey,
         priorityFeeInLamports,
-      }).catch(async (error) => {
-        if (error.response?.data?.error === "Curve is complete") {
-          console.log("Token is post bonding curve, trying Raydium");
-
-          const raydiumResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-all-on-raydium`, {
-            botId,
-            apiKey,
-            priorityFeeInLamports,
-          });
-
-          return raydiumResponse;
-        }
-        throw error;
       });
 
-      res.status(200).json(pumpFunResponse.data);
+      // Check if any tokens failed due to "Curve is complete"
+      const pumpFunResults = pumpFunResponse.data.results as SaleResults;
+      const curveCompleteTokens = pumpFunResults.failed.filter(
+        (result: TokenSaleResult) => result.error === "Curve is complete"
+      );
+
+      // If we have any tokens that failed due to curve completion, try them on Raydium
+      if (curveCompleteTokens.length > 0) {
+        console.log("Some tokens are post bonding curve, trying Raydium for those");
+
+        // Try selling the curve complete tokens on Raydium
+        const raydiumResponse = await axios.post(`${AURORA_VERTEX_API_URL}/sell-all-on-raydium`, {
+          botId,
+          apiKey,
+          priorityFeeInLamports,
+        });
+
+        // Merge results, keeping successful PumpFun sales and updating Curve Complete ones with Raydium results
+        const raydiumResults = raydiumResponse.data.results as SaleResults;
+
+        // Keep track of which mints were successfully sold on Raydium
+        const raydiumSuccessMints = new Set(raydiumResults.successful.map((r: TokenSaleResult) => r.mint));
+
+        // Update final results
+        const finalResults = {
+          successful: [
+            ...pumpFunResults.successful,
+            ...raydiumResults.successful
+          ],
+          failed: [
+            // Keep PumpFun failures that weren't "Curve is complete"
+            ...pumpFunResults.failed.filter((r: TokenSaleResult) => r.error !== "Curve is complete"),
+            // Add Raydium failures for tokens that weren't successfully sold
+            ...raydiumResults.failed.filter((r: TokenSaleResult) => !raydiumSuccessMints.has(r.mint))
+          ]
+        };
+
+        return res.status(200).json({
+          success: true,
+          results: {
+            ...finalResults,
+            totalSuccessful: finalResults.successful.length,
+            totalFailed: finalResults.failed.length
+          }
+        });
+      }
+
+      // If no curve complete tokens, just return PumpFun results
+      return res.status(200).json(pumpFunResponse.data);
     } catch (error) {
       console.error('Error selling all tokens:', error);
       res.status(500).json({

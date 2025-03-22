@@ -7,7 +7,7 @@ import { getPumpFunSdk, getSPLBalance, printSPLBalance } from "../../utils/solan
 import { sendSplTokens } from "../../utils/tokens";
 import axios from "axios";
 
-const SLIPPAGE_BASIS_POINTS = 2000n;
+const SLIPPAGE_BASIS_POINTS = 5000n;
 
 const calculatePriorityFees = (priorityFeeInLamports: number) => {
   const PUMPFUN_BUY_UNIT_LIMIT = 180_000;
@@ -37,7 +37,7 @@ const buyTokens = async (
   return buyResults;
 };
 
-const MAX_RETRIES = 25;
+const MAX_RETRIES = 30;
 const RETRY_DELAY_MS = 500;
 
 const retryBuy = async (

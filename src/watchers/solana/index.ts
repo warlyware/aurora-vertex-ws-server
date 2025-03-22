@@ -33,6 +33,8 @@ const accountsToWatch = [
   'BieeZkdnBAgNYknzo3RH2vku7FcPkFZMZmRJANh2TpW',
   'GFpTwacyVBzjf3XmX4pB4opmVaBtbJoXFDwDKabiTVcM',
   '5beKNXbj1VfJyceBtXEsEnfHmAxyZAbAvkfmJHRMYXvF',
+  'CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o',
+  'BZKGRtZESRXns1b2KbQohKPjUTqTkHBZdGZ7C9U6LfoZ',
 ];
 
 const logToTerminal = (message: string) => {

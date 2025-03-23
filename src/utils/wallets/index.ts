@@ -8,6 +8,7 @@ import { ADD_WALLET } from "../../graphql/mutations/add-wallet";
 import { ADD_KEYPAIR } from "../../graphql/mutations/add-keypair";
 import { Response } from "express";
 
+console.log({ HELIUS_API_KEY });
 export const helius = new Helius(HELIUS_API_KEY);
 
 export async function fetchTokenAccountsDas(address: string) {

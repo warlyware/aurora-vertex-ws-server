@@ -3,6 +3,7 @@ import { helius } from "../wallets";
 
 async function fetchAssetByMint(mintAddress: string) {
   try {
+    console.log({ helius });
     const asset = await helius.rpc.getAsset({
       id: mintAddress,
     });

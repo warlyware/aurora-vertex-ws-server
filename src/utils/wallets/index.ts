@@ -12,7 +12,6 @@ export const helius = new Helius(HELIUS_API_KEY);
 
 export async function fetchTokenAccountsDas(address: string) {
   try {
-    console.log({ HELIUS_API_KEY });
     const res = await helius.rpc.getTokenAccounts({
       owner: address,
     });

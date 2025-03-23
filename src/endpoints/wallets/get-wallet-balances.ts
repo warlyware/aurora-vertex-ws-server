@@ -112,20 +112,31 @@ export function setupWalletBalancesRoute(router: Router) {
 
       const { value }: { value: TokenAccountResponse[] } = response.data.result;
 
-      const balances: TokenBalance[] = await Promise.all(value.map(async (tokenAccount) => {
-        const metadata = await getTokenMetadata(tokenAccount.account.data.parsed.info.mint);
-
-        return {
-          tokenAccount: tokenAccount.pubkey,
-          mint: tokenAccount.account.data.parsed.info.mint,
-          amount: Number(tokenAccount.account.data.parsed.info.tokenAmount.amount),
-          decimals: tokenAccount.account.data.parsed.info.tokenAmount.decimals,
-          image: metadata?.content?.files?.[0]?.cdn_uri || metadata?.content?.json_uri || metadata?.content?.files?.[0]?.uri,
-          name: metadata?.content?.metadata?.name,
-          symbol: metadata?.content?.metadata?.symbol,
-          priceInUSD: metadata?.token_info?.price_info?.price_per_token
-        };
-      }));
+      // Process token accounts sequentially instead of in parallel
+      const balances: TokenBalance[] = [];
+      for (const tokenAccount of value) {
+        try {
+          // Only fetch metadata for tokens with non-zero balance
+          const amount = Number(tokenAccount.account.data.parsed.info.tokenAmount.amount);
+          if (amount > 0) {
+            const metadata = await getTokenMetadata(tokenAccount.account.data.parsed.info.mint);
+            balances.push({
+              tokenAccount: tokenAccount.pubkey,
+              mint: tokenAccount.account.data.parsed.info.mint,
+              amount,
+              decimals: tokenAccount.account.data.parsed.info.tokenAmount.decimals,
+              image: metadata?.content?.files?.[0]?.cdn_uri || metadata?.content?.json_uri || metadata?.content?.files?.[0]?.uri,
+              name: metadata?.content?.metadata?.name,
+              symbol: metadata?.content?.metadata?.symbol,
+              priceInUSD: metadata?.token_info?.price_info?.price_per_token
+            });
+          }
+        } catch (error) {
+          console.error(`Error processing token account ${tokenAccount.pubkey}:`, error);
+          // Continue processing other tokens even if one fails
+          continue;
+        }
+      }
 
       const nativeBalance = await connection.getBalance(new PublicKey(address));
       return res.status(200).json({

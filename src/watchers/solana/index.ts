@@ -39,6 +39,8 @@ const accountsToWatch = [
   '3PTrjf65ec7zVWUK2BqHA6rPyQcoJ7xTKBGnJJyqF9wU',
 ];
 
+console.log({ accountsToWatch });
+
 const logToTerminal = (message: string) => {
   console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} ${message}`);
   logServerEvent(message);

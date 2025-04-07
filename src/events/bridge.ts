@@ -5,8 +5,9 @@ import { messageTypes } from "../types/messages";
 import { SolanaTxNotificationFromHeliusEvent, SolanaTxNotificationFromHeliusWithTimestamp } from "../types/solana";
 import { BotLogEvent } from "../logging";
 import { getActionsFromTx, TxAction } from "../utils/solana/get-actions-from-tx";
+import { getHeliusWs } from "../watchers/solana";
 
-const { SOLANA_TX_EVENT, BOT_STATUS_UPDATE } = messageTypes;
+const { SOLANA_TX_EVENT, BOT_STATUS_UPDATE, SOLANA_REFRESH_ACCOUNTS_TO_WATCH } = messageTypes;
 
 export type SolanaTxEvent = {
   type: typeof SOLANA_TX_EVENT;
@@ -51,7 +52,13 @@ export const setupEventBusListeners = () => {
     sendToConnectedClients(solanaTxEvent); // This is a global event, send to all
   });
 
-  // Remove BOT_STATUS_UPDATE listener since it's handled directly in bot manager
+  eventBus.on(SOLANA_REFRESH_ACCOUNTS_TO_WATCH, () => {
+    // This event will be handled by the Solana watcher
+    const ws = getHeliusWs();
+    if (ws) {
+      ws.emit('fetchAccountsToWatch');
+    }
+  });
 
   eventBus.on(BOT_LOG_EVENT, (event: BotLogEvent) => {
     console.log('BOT_LOG_EVENT', event);

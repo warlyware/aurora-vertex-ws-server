@@ -20,6 +20,7 @@ enum MessageType {
   TG_CHAT_MESSAGE = "TG_CHAT_MESSAGE",
   TG_GET_CHATS = "TG_GET_CHATS",
   TG_GET_ME = "TG_GET_ME",
+  SOLANA_REFRESH_ACCOUNTS_TO_WATCH = "SOLANA_REFRESH_ACCOUNTS_TO_WATCH",
 }
 
 export const messageTypes = {
@@ -45,6 +46,7 @@ export const messageTypes = {
   TG_CHAT_MESSAGE: MessageType.TG_CHAT_MESSAGE,
   TG_GET_CHATS: MessageType.TG_GET_CHATS,
   TG_GET_ME: MessageType.TG_GET_ME,
+  SOLANA_REFRESH_ACCOUNTS_TO_WATCH: MessageType.SOLANA_REFRESH_ACCOUNTS_TO_WATCH,
 };
 
 export const messageGroups = {

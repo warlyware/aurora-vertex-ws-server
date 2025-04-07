@@ -19,11 +19,13 @@ export const clients = new Map<string, WebSocket>();
 // Initialize Solana watcher immediately on server start
 // const solanaWatchers = setupSolanaWatchers(clients);
 const botManager = setupBotManager();
-let solanaWatchers: ReturnType<typeof setupSolanaWatchers> | undefined;
+let solanaWatchers: Awaited<ReturnType<typeof setupSolanaWatchers>> | undefined;
 
 // if (process.env.IS_PRODUCTION) {
 if (true) {
-  solanaWatchers = setupSolanaWatchers(clients);
+  (async () => {
+    solanaWatchers = await setupSolanaWatchers(clients);
+  })();
 }
 
 initRedis();
@@ -32,6 +34,8 @@ wss.on("connection", async function (ws: WebSocket, req) {
   const parsedUrl = parse(req.url || '', true);
   const authKey = parsedUrl?.query?.auth;
   const userId = parsedUrl?.query?.userId as string;
+
+  console.log({ parsedUrl });
 
   if (!authKey || authKey !== process.env.AURORA_VERTEX_API_KEY) {
     console.error("Client not authorized");
@@ -53,8 +57,8 @@ wss.on("connection", async function (ws: WebSocket, req) {
   setupFolderWatchers(ws);
   setupEventListeners(ws, botManager, solanaWatchers);
   if (solanaWatchers) {
-    solanaWatchers.sendRestoredTransactionsToClient(ws);
-    solanaWatchers.sendRestoredLogsToClient(ws);
+    await solanaWatchers.sendRestoredTransactionsToClient(ws);
+    await solanaWatchers.sendRestoredLogsToClient(ws);
   }
   // await createTgClient(ws);
 

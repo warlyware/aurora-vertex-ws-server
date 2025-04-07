@@ -75,7 +75,7 @@ export const setupApp = () => {
 export const setupEventListeners = (
   ws: WebSocket,
   botManager: ReturnType<typeof setupBotManager>,
-  solanaWatchers: ReturnType<typeof setupSolanaWatchers>
+  solanaWatchers: Awaited<ReturnType<typeof setupSolanaWatchers>> | undefined
 ) => {
   ws.on("message", async function (message: string) {
     const { type, payload, clientSentTime } = JSON.parse(message);
@@ -108,7 +108,7 @@ export const setupEventListeners = (
           console.error("Solana watchers not initialized");
           return;
         }
-        solanaWatchers.handleMessage({ type, payload }, ws);
+        await solanaWatchers.handleMessage({ type, payload }, ws);
         break;
       }
 

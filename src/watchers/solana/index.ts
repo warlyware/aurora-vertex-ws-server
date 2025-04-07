@@ -7,7 +7,10 @@ import { SolanaTxNotificationFromHelius, SolanaTxNotificationFromHeliusWithTimes
 import { eventBus } from '../../events/bus';
 import { sendToConnectedClients } from '../..';
 import dayjs from 'dayjs';
-const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SERVER_LOG_EVENT, SOLANA_TX_EVENT } = messageTypes;
+import { GET_TRADERS } from '../../graphql/queries/get-traders';
+const { SOLANA_TX_NOTIFICATION_FROM_HELIUS, SERVER_LOG_EVENT, SOLANA_TX_EVENT, SOLANA_REFRESH_ACCOUNTS_TO_WATCH } = messageTypes;
+import { getGqlClient } from "../../graphql/client";
+import { HeliusConnectionMetrics } from './types';
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 let reconnectAttempts = 0;
@@ -22,24 +25,51 @@ let lastHeartbeatTimestamp = Date.now();
 let lastRestartTimestamp: number | null = null;
 let isReconnecting = false;
 
-const accountsToWatch = [
-  'DEcgrKvk9FdVjSUKLr6x7cyyEfW1PBVkMvLFPo65qyyY',
-  'DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj',
-  '6LChaYRYtEYjLEHhzo4HdEmgNwu2aia8CM8VhR9wn6n7',
-  '6eDPccEWC1BbJXBdEHA3pc2NjThZwAf5n3wb9rxkmuaf',
-  'CotYDUwu4c3a73Hya3Tjm7u9gzmZweoKip2kQyuyhAEF',
-  'HLLXwFZN9CHTct5K4YpucZ137aji27EkkJ1ZaZE7JVmk',
-  '7EHzMDNuY6gKbbeXZUxkTwfyA9jonsfjzFGurRfzwNjo',
-  'BieeZkdnBAgNYknzo3RH2vku7FcPkFZMZmRJANh2TpW',
-  'GFpTwacyVBzjf3XmX4pB4opmVaBtbJoXFDwDKabiTVcM',
-  '5beKNXbj1VfJyceBtXEsEnfHmAxyZAbAvkfmJHRMYXvF',
-  'CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o',
-  'BZKGRtZESRXns1b2KbQohKPjUTqTkHBZdGZ7C9U6LfoZ',
-  'HzjAQUKjZcT3ESZ9WNbJeXqvzZYxvy3VGquwQ9mX2c92',
-  '3PTrjf65ec7zVWUK2BqHA6rPyQcoJ7xTKBGnJJyqF9wU',
-];
+let accountsToWatch: string[] = [];
 
-console.log({ accountsToWatch });
+const fetchAccountsToWatch = async () => {
+  const client = await getGqlClient();
+  const { traders } = await client.request<{
+    traders: {
+      id: string;
+      name: string;
+      createdAt: string;
+      wallet: {
+        id: string;
+        address: string;
+      }
+    }[]
+  }>(GET_TRADERS);
+
+  return traders.map(trader => trader.wallet.address);
+};
+
+const subscribeToTransactions = async () => {
+  const accountsToWatch = await fetchAccountsToWatch();
+
+  logToTerminal(`Subscribing to transactions for ${accountsToWatch.length} accounts`);
+  if (!heliusWs) return;
+  heliusWs.send(JSON.stringify({
+    "jsonrpc": "2.0",
+    "id": `aurora-tx-${Date.now()}`,
+    "method": "transactionSubscribe",
+    "params": [
+      {
+        "vote": false,
+        "failed": false,
+        "accountInclude": accountsToWatch
+      },
+      {
+        "commitment": "processed", // as soon as possible
+        "encoding": "jsonParsed",
+        "transactionDetails": "full",
+        "showRewards": true,
+        "maxSupportedTransactionVersion": 0
+      }
+    ]
+  }));
+};
+
 
 const logToTerminal = (message: string) => {
   console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} ${message}`);
@@ -51,27 +81,6 @@ const storeTransaction = async (signature: string, transaction: any) => {
   if (!process.env.IS_PRODUCTION || !redis) return;
   await redis.set(`tx:${signature}`, JSON.stringify(transaction));
 };
-
-type HeliusConnectionMetrics = {
-  lastConnectedAt: number | null;
-  disconnectionCount: number;
-  reconnectionAttempts: number;
-  totalUptime: number;
-  lastDisconnectReason?: string;
-  heartbeatStats: {
-    total: number;
-    missed: number;
-  };
-  transactionStats: {
-    total: number;
-    lastReceivedAt: number | null;
-  };
-  latencyStats: {
-    current: number | null;    // Current round-trip time
-    average: number | null;    // Average of round-trip times
-    samples: number;          // Number of measurements
-  };
-}
 
 const metrics: HeliusConnectionMetrics = {
   lastConnectedAt: null,
@@ -114,7 +123,9 @@ const resetMetrics = () => {
   };
 };
 
-export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
+export const getHeliusWs = () => heliusWs;
+
+export const setupSolanaWatchers = async (clients: Map<string, WebSocket>) => {
   if (heliusWs) return;
 
   resetMetrics();
@@ -191,7 +202,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     }
   };
 
-  wsInstance.on('open', () => {
+  wsInstance.on('open', async () => {
     metrics.lastConnectedAt = Date.now();
     metrics.reconnectionAttempts = 0;
     logServerEvent(`Helius Primary WebSocket is open`);
@@ -201,25 +212,7 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
     lastHeartbeatTimestamp = Date.now();
     reconnectAttempts = 0;
 
-    wsInstance.send(JSON.stringify({
-      "jsonrpc": "2.0",
-      "id": `aurora-tx-${Date.now()}`,
-      "method": "transactionSubscribe",
-      "params": [
-        {
-          "vote": false,
-          "failed": false,
-          "accountInclude": accountsToWatch
-        },
-        {
-          "commitment": "processed", // as soon as possible
-          "encoding": "jsonParsed",
-          "transactionDetails": "full",
-          "showRewards": true,
-          "maxSupportedTransactionVersion": 0
-        }
-      ]
-    }));
+    await subscribeToTransactions();
     logServerEvent(`Subscribed to transaction notifications`);
     logToTerminal('Subscribed to transaction notifications');
     wsInstance.send(JSON.stringify({
@@ -295,6 +288,10 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
         }
       }
     });
+  });
+
+  wsInstance.on('fetchAccountsToWatch', async () => {
+    await subscribeToTransactions();
   });
 
   wsInstance.on('message', (data) => {
@@ -424,6 +421,11 @@ export const setupSolanaWatchers = (clients: Map<string, WebSocket>) => {
       const { type, payload } = message;
       switch (type) {
         case SOLANA_TX_NOTIFICATION_FROM_HELIUS:
+          break;
+        case SOLANA_REFRESH_ACCOUNTS_TO_WATCH:
+          await subscribeToTransactions();
+          logServerEvent(`Updated accounts to watch`);
+          logToTerminal('Updated accounts to watch');
           break;
         default:
           logServerEvent(`Unknown message type: ${type}`);

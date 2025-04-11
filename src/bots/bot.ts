@@ -10,6 +10,7 @@ import { AURORA_VERTEX_API_KEY, AURORA_VERTEX_API_URL } from "../constants";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { logServerEvent } from "../logging";
+import { getBotQueue } from "../queue";
 const { BOT_SPAWN,
   BOT_STATUS_UPDATE,
   BOT_STOP,
@@ -24,11 +25,11 @@ const logToTerminal = (message: string) => {
 };
 
 // Local version of logBotEvent that sends through the IPC channel
-const logBotEvent = (bot: BotInfo, payload: { info: string; meta?: any }) => {
+const logBotEvent = (botId: string, payload: { info: string; meta?: any }) => {
   sendToBotManager({
     type: BOT_LOG_EVENT,
     payload: {
-      botId: bot.id,
+      botId,
       ...payload
     }
   });
@@ -349,7 +350,7 @@ const sendToBotManager = (message: BotMessage) => {
         info += ` || Total: ${session.profit.toFixed(2)}%`;
       }
 
-      logBotEvent(session.bot, {
+      logBotEvent(session.bot.id, {
         info,
       });
     }
@@ -372,7 +373,7 @@ const sendToBotManager = (message: BotMessage) => {
 
     const bot = session.bot;
     if (tradeType === 'BUY') {
-      logBotEvent(bot, {
+      logBotEvent(bot.id, {
         info: `Attempting to buy ${amount / LAMPORTS_PER_SOL} SOL of ${mainAction.tokenMint}${tokenSession?.isPostBondingCurve ? ' on Raydium' : ' on PumpFun'}`,
         meta: {
           price,
@@ -407,7 +408,7 @@ const sendToBotManager = (message: BotMessage) => {
       }).catch(error => {
         if (error.response?.data?.error === "Curve is complete" && tokenSession) {
           tokenSession.isPostBondingCurve = true;
-          logBotEvent(bot, {
+          logBotEvent(bot.id, {
             info: `Token ${mainAction.tokenMint} is now post bonding curve`,
           });
         }
@@ -423,7 +424,7 @@ const sendToBotManager = (message: BotMessage) => {
         sendSignature = response.data.sendSignature;
       }
 
-      logBotEvent(session.bot, {
+      logBotEvent(session.bot.id, {
         info: `Buy order response: ${JSON.stringify(response?.data)}`,
         meta: {
           response: response?.data,
@@ -458,7 +459,7 @@ const sendToBotManager = (message: BotMessage) => {
 
       logToTerminal(`Buy order response: ${JSON.stringify(response?.data)}`);
     } else {
-      logBotEvent(bot, {
+      logBotEvent(bot.id, {
         info: `Attempting to sell ${amount} tokens of ${mainAction.tokenMint}${tokenSession?.isPostBondingCurve ? ' on Raydium' : ' on PumpFun'}`,
         meta: {
           price,
@@ -480,7 +481,7 @@ const sendToBotManager = (message: BotMessage) => {
       }).catch(error => {
         if (error.response?.data?.error === "Curve is complete" && tokenSession) {
           tokenSession.isPostBondingCurve = true;
-          logBotEvent(bot, {
+          logBotEvent(bot.id, {
             info: `Token ${mainAction.tokenMint} is now post bonding curve`,
           });
         }
@@ -490,7 +491,7 @@ const sendToBotManager = (message: BotMessage) => {
 
       console.log("Sell order response", response?.data);
 
-      logBotEvent(session.bot, {
+      logBotEvent(session.bot.id, {
         info: `Sell order response: ${JSON.stringify(response?.data)}`,
         meta: {
           response: response?.data,
@@ -522,7 +523,7 @@ const sendToBotManager = (message: BotMessage) => {
       tokenMint: mainAction.tokenMint
     });
 
-    logBotEvent(session.bot, {
+    logBotEvent(session.bot.id, {
       info: `${tradeType} executed: ${amount} tokens at ${price} SOL`,
       meta: {
         timestamp: Date.now(),
@@ -619,8 +620,33 @@ const sendToBotManager = (message: BotMessage) => {
       return;
     }
 
-    logBotEvent(session.bot, {
-      info: `${session.bot?.name} started!`
+    // Initialize queue for this bot
+    const queue = getBotQueue(botId);
+
+    console.log(`Starting queue for bot`, queue);
+
+    // Add a test job to the queue
+    const testJob = await queue.add('test', {
+      type: 'TEST',
+      botId,
+      userId: session.bot?.user?.id,
+      tokenMint: 'dummy-mint',
+      amount: 0,
+      price: 0,
+      strategy: {
+        priorityFee: 0,
+        slippagePercentage: 0,
+        shouldAutoSell: false,
+        autoSellDelayInMs: 0
+      },
+      metadata: {
+        originalTx: 'test-tx',
+        timestamp: Date.now()
+      }
+    });
+
+    logBotEvent(session.bot.id, {
+      info: `${session.bot?.name} started! Added test job ${testJob.id} to queue`
     });
 
     statusReportInterval = setInterval(() => {

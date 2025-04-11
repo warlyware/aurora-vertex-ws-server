@@ -90,7 +90,7 @@ export const spawnBot = async (botId: string) => {
 
   const keypair = `keypair-${botId}`;
 
-  logBotEvent(botInfo, {
+  logBotEvent(botId, userId, {
     info: `Starting ${botInfo.name}`
   });
 
@@ -146,7 +146,7 @@ export const spawnBot = async (botId: string) => {
   botProcess.on('exit', (code) => {
     const exitMessage = code === 0 ? ' successfully' : `, crashed with code ${code}`;
 
-    logBotEvent(botInfo, {
+    logBotEvent(botId, userId, {
       info: `Stopped ${botInfo.name}${exitMessage}`
     });
 
@@ -168,7 +168,7 @@ export const spawnBot = async (botId: string) => {
 export const stopBot = async (botId: string) => {
   const bot = bots.get(botId);
   const botInfo = await getBotById(botId);
-
+  const userId = botInfo?.user?.id;
   if (bot) {
     sendToBotProcess({
       type: BOT_STOP,
@@ -178,7 +178,7 @@ export const stopBot = async (botId: string) => {
     }, bot.process);
     // bot.process.kill();
   } else {
-    logBotEvent(botInfo, {
+    logBotEvent(botId, userId, {
       info: `Bot ${botId} not found`
     });
   }

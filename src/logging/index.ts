@@ -33,9 +33,9 @@ export const logServerEvent = (event: ServerLogEvent['payload']) => {
   storeLog(`server:${event}`);
 };
 
-export const logBotEvent = (bot: BotInfo, payload: BotLogEvent['payload']) => {
+export const logBotEvent = (botId: string, userId: string, payload: BotLogEvent['payload']) => {
   console.log('logBotEvent', {
-    userId: bot.user.id,
+    userId,
     payload
   });
 
@@ -44,7 +44,8 @@ export const logBotEvent = (bot: BotInfo, payload: BotLogEvent['payload']) => {
     timestamp: Date.now(),
     payload: {
       ...payload,
-      userId: bot.user.id
+      userId,
+      botId
     }
   };
 

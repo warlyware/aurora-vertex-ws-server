@@ -2,6 +2,10 @@ import { Queue, Worker } from 'bullmq';
 import { logServerEvent } from '../logging';
 import { TradeJob, TradeJobResult } from './types';
 import { redisConfig } from '../redis';
+import { eventBus } from '../events/bus';
+import { messageTypes } from '../types/messages';
+
+const { BOT_LOG_EVENT } = messageTypes;
 
 // Queue and worker registries
 const botQueues = new Map<string, Queue<TradeJob, TradeJobResult>>();
@@ -9,16 +13,19 @@ const botWorkers = new Map<string, Worker<TradeJob, TradeJobResult>>();
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Local version of logBotEvent that sends through the IPC channel
+// Local version of logBotEvent that uses the event bus
 const logBotEvent = (botId: string, userId: string, payload: { info: string; meta?: any }) => {
-  process.send?.({
-    type: 'BOT_LOG_EVENT',
+  const event = {
+    type: BOT_LOG_EVENT,
+    timestamp: Date.now(),
     payload: {
-      botId,
+      ...payload,
       userId,
-      ...payload
+      botId
     }
-  });
+  };
+
+  eventBus.emit(BOT_LOG_EVENT, event);
 };
 
 /**
